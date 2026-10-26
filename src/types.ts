@@ -4,8 +4,9 @@ export type TabType =
   | 'lesson5512'
   | 'examsuite'
   | 'mediastudio'
-  | 'prose'
   | 'models'
+  | 'sync'
+  | 'prose'
   | 'desktop'
   | 'logs';
 
@@ -34,4 +35,7 @@ export interface UserSettings {
   ollamaHost: string;
   customPrompt: string;
   language: Language;
+  syncVaultKey?: string;
+  aiBridgeAutoSync?: boolean;
+  providerProfiles?: Record<string, string>;
 }

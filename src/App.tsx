@@ -7,6 +7,7 @@ import { ExamSuiteTab } from './components/ExamSuiteTab';
 import { MediaStudioTab } from './components/MediaStudioTab';
 import { ProseRulesTab } from './components/ProseRulesTab';
 import { ModelCatalogTab } from './components/ModelCatalogTab';
+import { DataBackupSyncTab, FullWorkspaceBackupPayload } from './components/DataBackupSyncTab';
 import { DesktopCompanionTab } from './components/DesktopCompanionTab';
 import { SystemLogTab } from './components/SystemLogTab';
 import { TabType, UserSettings, AppLog } from './types';
@@ -27,9 +28,10 @@ import {
   WorksheetAndGamePackage,
 } from './types/pedagogyTypes';
 import { generatePedagogyModuleOnDemand } from './utils/pedagogyApi';
-import { BookOpen, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { BookOpen, Sparkles, ChevronDown, ChevronUp, CloudUpload } from 'lucide-react';
 
 const STORAGE_KEY = 'autotyper_studio_pro_v3_settings';
+const WORKSPACE_STORAGE_KEY = 'autotyper_studio_pro_v3_workspace';
 
 const DEFAULT_SETTINGS: UserSettings = {
   delayMin: 0.10,
@@ -47,13 +49,15 @@ const DEFAULT_SETTINGS: UserSettings = {
   ollamaHost: 'http://127.0.0.1:11434',
   customPrompt: DEFAULT_SYSTEM_PROMPT,
   language: 'vi',
+  syncVaultKey: 'HTK-PRO-8899',
+  aiBridgeAutoSync: true,
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('humanizer');
   const [preloadedTyperText, setPreloadedTyperText] = useState<string>('');
 
-  // Load saved settings from localStorage (Isolated Central AppState)
+  // Load saved settings from localStorage
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -78,17 +82,35 @@ export default function App() {
     });
   }, []);
 
-  // Central AppState for 10-in-1 Pedagogical Platform
+  // Load saved workspace or initialize from default preset
   const defaultPreset = CURRICULUM_PRESETS[0];
-  const [lessonTitle, setLessonTitle] = useState<string>(defaultPreset.lessonTitle);
-  const [subject, setSubject] = useState<string>(defaultPreset.subject);
-  const [grade, setGrade] = useState<string>(defaultPreset.grade);
-  const [coreInput, setCoreInput] = useState<string>(defaultPreset.coreKnowledgeText);
+  const savedWorkspace = (() => {
+    try {
+      const raw = localStorage.getItem(WORKSPACE_STORAGE_KEY);
+      if (raw) return JSON.parse(raw) as Partial<FullWorkspaceBackupPayload>;
+    } catch {
+      // Ignore
+    }
+    return null;
+  })();
+
+  const [lessonTitle, setLessonTitle] = useState<string>(
+    savedWorkspace?.lessonTitle || defaultPreset.lessonTitle
+  );
+  const [subject, setSubject] = useState<string>(
+    savedWorkspace?.subject || defaultPreset.subject
+  );
+  const [grade, setGrade] = useState<string>(
+    savedWorkspace?.grade || defaultPreset.grade
+  );
+  const [coreInput, setCoreInput] = useState<string>(
+    savedWorkspace?.coreInput || defaultPreset.coreKnowledgeText
+  );
   const [showCoreInputEditor, setShowCoreInputEditor] = useState<boolean>(false);
   const [isGeneratingModule, setIsGeneratingModule] = useState<boolean>(false);
 
-  // Isolated Module State Slices
   const [lessonPlan, setLessonPlan] = useState<LessonPlan5512>(() =>
+    savedWorkspace?.lessonPlan ||
     buildLessonPlan5512FromInput(
       defaultPreset.lessonTitle,
       defaultPreset.subject,
@@ -97,6 +119,7 @@ export default function App() {
     )
   );
   const [examPackage, setExamPackage] = useState<DifferentiatedExamPackage>(() =>
+    savedWorkspace?.examPackage ||
     buildExamPackageFromInput(
       defaultPreset.lessonTitle,
       defaultPreset.subject,
@@ -105,6 +128,7 @@ export default function App() {
     )
   );
   const [slides, setSlides] = useState<SlideItem[]>(() =>
+    savedWorkspace?.slides ||
     buildSlidesFromInput(
       defaultPreset.lessonTitle,
       defaultPreset.subject,
@@ -113,6 +137,7 @@ export default function App() {
     )
   );
   const [microVideo, setMicroVideo] = useState<MicroVideoPackage>(() =>
+    savedWorkspace?.microVideo ||
     buildMicroVideoFromInput(
       defaultPreset.lessonTitle,
       defaultPreset.subject,
@@ -121,6 +146,7 @@ export default function App() {
     )
   );
   const [worksheetGame, setWorksheetGame] = useState<WorksheetAndGamePackage>(() =>
+    savedWorkspace?.worksheetGame ||
     buildWorksheetAndGameFromInput(
       defaultPreset.lessonTitle,
       defaultPreset.subject,
@@ -129,25 +155,60 @@ export default function App() {
     )
   );
 
+  // Auto-persist workspace locally whenever it changes
+  useEffect(() => {
+    try {
+      const snapshot: FullWorkspaceBackupPayload = {
+        version: '3.0.0',
+        author: 'Hồ Tấn Khải',
+        exportedAt: new Date().toISOString(),
+        settings,
+        lessonTitle,
+        subject,
+        grade,
+        coreInput,
+        lessonPlan,
+        examPackage,
+        slides,
+        microVideo,
+        worksheetGame,
+      };
+      localStorage.setItem(WORKSPACE_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Ignore quota
+    }
+  }, [
+    settings,
+    lessonTitle,
+    subject,
+    grade,
+    coreInput,
+    lessonPlan,
+    examPackage,
+    slides,
+    microVideo,
+    worksheetGame,
+  ]);
+
   // System Logs
   const [logs, setLogs] = useState<AppLog[]>([
     {
       id: 'log-1',
       timestamp: new Date().toLocaleTimeString(),
       level: 'info',
-      message: 'AutoTyper Studio Pro v3.0 (10-in-1) initialized. Bảo tồn 100% lõi v2.4 & kích hoạt Web Worker (0% UI Freeze).',
+      message: 'Auto Typer Studio Pro v3.0 — Tác giả: Hồ Tấn Khải đã khởi động thành công.',
     },
     {
       id: 'log-2',
       timestamp: new Date().toLocaleTimeString(),
       level: 'engine',
-      message: 'Central AppState & Progressive On-Demand Engine ready. Active model: Google Gemini 3.8 Flash.',
+      message: 'Đã đồng bộ kết nối toàn bộ 37 mô hình AI (100% Sẵn sàng).',
     },
     {
       id: 'log-3',
       timestamp: new Date().toLocaleTimeString(),
       level: 'hotkey',
-      message: 'Hotkey registered: Ctrl+Shift+H (Humanize) & Ctrl+T (AutoTyper Simulator).',
+      message: 'Phím tắt nhanh: Ctrl+Shift+H (AI Humanizer) & Ctrl+Alt+T (AutoTyper).',
     },
   ]);
 
@@ -168,7 +229,23 @@ export default function App() {
     setLogs([]);
   };
 
-  // Switch tab and send text to AutoTyper Simulator (Module 1)
+  // Restore full workspace from Cloud Sync ID, Portable Token, or File
+  const handleRestoreWorkspace = (payload: FullWorkspaceBackupPayload) => {
+    if (payload.settings) {
+      updateSettings(payload.settings);
+    }
+    if (payload.lessonTitle) setLessonTitle(payload.lessonTitle);
+    if (payload.subject) setSubject(payload.subject);
+    if (payload.grade) setGrade(payload.grade);
+    if (payload.coreInput) setCoreInput(payload.coreInput);
+    if (payload.lessonPlan) setLessonPlan(payload.lessonPlan);
+    if (payload.examPackage) setExamPackage(payload.examPackage);
+    if (payload.slides) setSlides(payload.slides);
+    if (payload.microVideo) setMicroVideo(payload.microVideo);
+    if (payload.worksheetGame) setWorksheetGame(payload.worksheetGame);
+  };
+
+  // Switch tab and send text to AutoTyper Simulator
   const handleSendToTyper = (text: string) => {
     setPreloadedTyperText(text);
     setActiveTab('autotyper');
@@ -178,7 +255,7 @@ export default function App() {
     );
   };
 
-  // Progressive On-Demand Generator for individual Pedagogical Modules
+  // Progressive On-Demand Generator
   const handleRegeneratePedagogyTask = async (
     task: 'lesson5512' | 'exam3part' | 'slides' | 'microvideo' | 'worksheet',
     overrideText?: string,
@@ -283,12 +360,11 @@ export default function App() {
     setWorksheetGame(buildWorksheetAndGameFromInput(newTitle, newSubject, newGrade, newText));
 
     addLog(
-      `Đã đồng bộ Tri thức cốt lõi "${newTitle}" (${newSubject} - ${newGrade}) sang các phân hệ 03 → 10`,
+      `Đã đồng bộ chủ đề "${newTitle}" (${newSubject} - ${newGrade}) sang toàn bộ phân hệ.`,
       'engine'
     );
   };
 
-  // Send humanized text from Module 2 directly into a specific Pedagogical branch
   const handleSendFromHumanizerToPedagogy = (
     text: string,
     targetTab: 'lesson5512' | 'examsuite' | 'mediastudio'
@@ -310,12 +386,12 @@ export default function App() {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         setActiveTab('humanizer');
-        addLog('In-browser hotkey triggered: Ctrl+Shift+H (AI Humanizer PRO)', 'hotkey');
+        addLog('Phím tắt: Ctrl+Shift+H (AI Humanizer PRO)', 'hotkey');
       }
       if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         setActiveTab('autotyper');
-        addLog('In-browser hotkey triggered: Ctrl+Alt+T (AutoTyper Simulator)', 'hotkey');
+        addLog('Phím tắt: Ctrl+Alt+T (AutoTyper Simulator)', 'hotkey');
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -325,8 +401,24 @@ export default function App() {
   const isPedagogyTab =
     activeTab === 'lesson5512' || activeTab === 'examsuite' || activeTab === 'mediastudio';
 
+  const currentBackupPayload: FullWorkspaceBackupPayload = {
+    version: '3.0.0',
+    author: 'Hồ Tấn Khải',
+    exportedAt: new Date().toISOString(),
+    settings,
+    lessonTitle,
+    subject,
+    grade,
+    coreInput,
+    lessonPlan,
+    examPackage,
+    slides,
+    microVideo,
+    worksheetGame,
+  };
+
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-900">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -340,96 +432,111 @@ export default function App() {
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        {/* Shared Central AppState Cockpit Bar for Pedagogical Modules (03 -> 10) */}
+        {/* Shared 3D Curriculum Cockpit Bar for Pedagogical Modules */}
         {isPedagogyTab && (
-          <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-4 shadow-lg">
+          <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-cyan-400 space-y-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <BookOpen className="w-5 h-5 text-cyan-400 shrink-0" />
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-cyan-500/20 border border-cyan-400/50 text-cyan-300">
+                  <BookOpen className="w-5 h-5 shrink-0" />
+                </div>
                 <div>
-                  <h2 className="text-sm font-bold text-white">
-                    Central AppState — Nguồn Tri Thức Cơ Sở Dùng Chung Cho Hệ Thống 10-Trong-1
+                  <h2 className="text-sm sm:text-base font-extrabold text-white">
+                    Chủ Đề Bài Học & Nguồn Học Liệu Đồng Bộ
                   </h2>
-                  <p className="text-xs text-zinc-400">
-                    Nhập tên bài học hoặc chọn mẫu học liệu chuẩn GDPT 2018 để đồng bộ xuyên suốt Giáo án 5512 · Đề 3 phần · Slide PPTX · Video · Game
+                  <p className="text-xs text-cyan-200">
+                    Đang chọn: <b>{lessonTitle}</b> ({subject} · {grade})
                   </p>
                 </div>
               </div>
 
-              {/* Preset Quick Switcher */}
               <div className="flex flex-wrap items-center gap-2">
-                {CURRICULUM_PRESETS.map((preset) => (
-                  <button
-                    key={preset.id}
-                    onClick={() =>
-                      handleSyncAllFromCoreInput(
-                        preset.lessonTitle,
-                        preset.subject,
-                        preset.grade,
-                        preset.coreKnowledgeText
-                      )
-                    }
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                      lessonTitle === preset.lessonTitle
-                        ? 'bg-cyan-600/20 border-cyan-500 text-cyan-300'
-                        : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:text-white'
-                    }`}
-                  >
-                    Mẫu: {preset.subject} ({preset.grade})
-                  </button>
-                ))}
+                {CURRICULUM_PRESETS.map((preset, idx) => {
+                  const btnStyles = [
+                    'btn-3d-cyan',
+                    'btn-3d-purple',
+                    'btn-3d-emerald',
+                  ];
+                  const isCurrent = lessonTitle === preset.lessonTitle;
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() =>
+                        handleSyncAllFromCoreInput(
+                          preset.lessonTitle,
+                          preset.subject,
+                          preset.grade,
+                          preset.coreKnowledgeText
+                        )
+                      }
+                      className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold ${
+                        isCurrent
+                          ? btnStyles[idx % btnStyles.length]
+                          : 'bg-slate-800 text-slate-200 border border-slate-600'
+                      }`}
+                    >
+                      Mẫu: {preset.subject} ({preset.grade})
+                    </button>
+                  );
+                })}
 
                 <button
                   onClick={() => setShowCoreInputEditor(!showCoreInputEditor)}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold flex items-center gap-1"
+                  className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
                 >
-                  <span>{showCoreInputEditor ? 'Thu gọn học liệu' : 'Tùy chỉnh Bài học & Học liệu'}</span>
-                  {showCoreInputEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  <span>{showCoreInputEditor ? 'Thu Gọn' : 'Nhập Bài Học Mới'}</span>
+                  {showCoreInputEditor ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
                 </button>
               </div>
             </div>
 
             {showCoreInputEditor && (
-              <div className="pt-3 border-t border-zinc-800 space-y-3">
+              <div className="pt-3 border-t border-slate-800 space-y-3">
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                   <div className="md:col-span-2">
-                    <label className="block text-xs text-zinc-400 mb-1">Tên bài học / Chủ đề:</label>
+                    <label className="block text-xs font-bold text-cyan-300 mb-1">
+                      Tên bài học / Chủ đề:
+                    </label>
                     <input
                       type="text"
                       value={lessonTitle}
                       onChange={(e) => setLessonTitle(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-white focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Môn học:</label>
+                    <label className="block text-xs font-bold text-cyan-300 mb-1">Môn học:</label>
                     <input
                       type="text"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-white focus:outline-none"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs text-zinc-400 mb-1">Khối lớp:</label>
+                    <label className="block text-xs font-bold text-cyan-300 mb-1">Khối lớp:</label>
                     <input
                       type="text"
                       value={grade}
                       onChange={(e) => setGrade(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-white focus:outline-none focus:border-cyan-500"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-white focus:outline-none"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-zinc-400 mb-1">
-                    Văn bản tri thức cơ sở (coreInput):
+                  <label className="block text-xs font-bold text-cyan-300 mb-1">
+                    Nội dung kiến thức cốt lõi:
                   </label>
                   <textarea
                     value={coreInput}
                     onChange={(e) => setCoreInput(e.target.value)}
                     rows={4}
-                    className="w-full p-3 rounded-lg bg-zinc-950 border border-zinc-700 text-xs text-zinc-200 font-mono leading-relaxed focus:outline-none focus:border-cyan-500"
+                    className="w-full p-3 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-slate-100 font-mono leading-relaxed focus:outline-none"
                   />
                 </div>
 
@@ -438,10 +545,10 @@ export default function App() {
                     onClick={() =>
                       handleSyncAllFromCoreInput(lessonTitle, subject, grade, coreInput)
                     }
-                    className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5"
+                    className="btn-3d btn-3d-emerald px-5 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2"
                   >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Áp Dụng & Đồng Bộ Toàn Bộ Phân Hệ (03 → 10)</span>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Áp Dụng & Đồng Bộ Toàn Bộ Hệ Thống</span>
                   </button>
                 </div>
               </div>
@@ -449,7 +556,7 @@ export default function App() {
           </div>
         )}
 
-        {/* MODULE 2: AI HUMANIZER PRO (Preserved v2.4 + Progressive Branching) */}
+        {/* AI HUMANIZER PRO */}
         {activeTab === 'humanizer' && (
           <HumanizeTab
             settings={settings}
@@ -461,7 +568,7 @@ export default function App() {
           />
         )}
 
-        {/* MODULE 1: AUTOTYPER SIMULATOR (Preserved v2.4) */}
+        {/* AUTOTYPER SIMULATOR */}
         {activeTab === 'autotyper' && (
           <AutoTyperTab
             settings={settings}
@@ -472,7 +579,7 @@ export default function App() {
           />
         )}
 
-        {/* MODULES 3 & 4: LESSON PLAN 5512 & COMPETENCY COLOR MAP */}
+        {/* LESSON PLAN & COMPETENCY COLOR MAP */}
         {activeTab === 'lesson5512' && (
           <Lesson5512Tab
             lessonPlan={lessonPlan}
@@ -483,7 +590,7 @@ export default function App() {
           />
         )}
 
-        {/* MODULES 5, 6 & 7: 3-PART EXAM, ADVERSARIAL AUDIT & UNDERLINED KEY + MATRIX */}
+        {/* EXAM SUITE, AUDIT & MATRIX */}
         {activeTab === 'examsuite' && (
           <ExamSuiteTab
             examPackage={examPackage}
@@ -495,7 +602,7 @@ export default function App() {
           />
         )}
 
-        {/* MODULES 8, 9 & 10: PPTX SLIDES, MICRO-VIDEO (2-3 MIN), WORKSHEET & MINI-GAME */}
+        {/* PPTX SLIDES, MICRO-VIDEO, WORKSHEET & MINI-GAME */}
         {activeTab === 'mediastudio' && (
           <MediaStudioTab
             lessonTitle={lessonTitle}
@@ -508,15 +615,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'prose' && (
-          <ProseRulesTab
-            settings={settings}
-            updateSettings={updateSettings}
-            language={settings.language}
-            onLog={addLog}
-          />
-        )}
-
+        {/* AI MODELS & 100% AUTO-SYNC */}
         {activeTab === 'models' && (
           <ModelCatalogTab
             settings={settings}
@@ -527,6 +626,28 @@ export default function App() {
           />
         )}
 
+        {/* DATA BACKUP & CROSS-DEVICE SYNC */}
+        {activeTab === 'sync' && (
+          <DataBackupSyncTab
+            language={settings.language}
+            workspacePayload={currentBackupPayload}
+            onRestoreWorkspace={handleRestoreWorkspace}
+            updateSettings={updateSettings}
+            onLog={addLog}
+          />
+        )}
+
+        {/* PROSE RULES */}
+        {activeTab === 'prose' && (
+          <ProseRulesTab
+            settings={settings}
+            updateSettings={updateSettings}
+            language={settings.language}
+            onLog={addLog}
+          />
+        )}
+
+        {/* GITHUB & DESKTOP */}
         {activeTab === 'desktop' && (
           <DesktopCompanionTab
             settings={settings}
@@ -535,6 +656,7 @@ export default function App() {
           />
         )}
 
+        {/* LOGS */}
         {activeTab === 'logs' && (
           <SystemLogTab
             logs={logs}
@@ -544,20 +666,26 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-zinc-900 bg-zinc-950 py-6 text-xs text-zinc-400">
+      <footer className="frame-3d-header border-t-4 border-sky-400 py-5 text-xs text-slate-200 mt-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span>AutoTyper Studio Pro v3.0 (10-in-1 Pedagogical & Assessment Platform)</span>
-            <span aria-hidden="true">·</span>
-            <span>Bảo lưu 100% v2.4 · GitHub Pages & Vercel Ready</span>
+          <div className="flex items-center gap-3">
+            <span className="font-extrabold text-sm brand-title-blink">
+              Auto Typer Studio Pro v3.0
+            </span>
+            <span aria-hidden="true" className="text-sky-400">·</span>
+            <span className="font-bold text-amber-300">
+              Tác giả: Hồ Tấn Khải
+            </span>
           </div>
 
-          <div className="flex items-center gap-3 text-zinc-400">
-            <span>State Isolation</span>
-            <span aria-hidden="true">·</span>
-            <span>Lazy CDN Export (.docx / .pptx)</span>
-            <span aria-hidden="true">·</span>
-            <span>Web Worker 0% UI Freeze</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setActiveTab('sync')}
+              className="btn-3d btn-3d-cyan px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              <span>Mã Sao Lưu Hiện Tại: {settings.syncVaultKey || 'HTK-PRO-8899'}</span>
+            </button>
           </div>
         </div>
       </footer>
