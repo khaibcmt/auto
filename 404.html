@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AutoTyper & AI Humanizer Studio</title>
+    <meta name="description" content="Nền tảng Humanize văn bản AI chống phát hiện và Bộ giả lập gõ phím tự nhiên đa tính năng với quy tắc câu chuẩn senior engineer." />
+    <meta property="og:title" content="AutoTyper & AI Humanizer Studio" />
+    <meta property="og:description" content="Nền tảng Humanize văn bản AI chống phát hiện và Bộ giả lập gõ phím tự nhiên đa tính năng với quy tắc câu chuẩn senior engineer." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script>
+      window.__loadAutotyperFallback = function () {
+        if (window.__AUTOTYPER_BOOTED__ || window.__AUTOTYPER_FALLBACK_LOADING__) return;
+        window.__AUTOTYPER_FALLBACK_LOADING__ = true;
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = './docs/assets/app.css';
+        document.head.appendChild(css);
+
+        var js = document.createElement('script');
+        js.type = 'module';
+        js.src = './docs/assets/app.js';
+        document.body.appendChild(js);
+      };
+      window.addEventListener('load', function () {
+        setTimeout(function () {
+          if (!window.__AUTOTYPER_BOOTED__) {
+            window.__loadAutotyperFallback();
+          }
+        }, 150);
+      });
+    </script>
+  </head>
+  <body class="bg-zinc-950 text-zinc-100">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx" onerror="window.__loadAutotyperFallback()"></script>
+  </body>
+</html>

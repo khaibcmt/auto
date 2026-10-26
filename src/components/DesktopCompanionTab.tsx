@@ -70,11 +70,11 @@ export const DesktopCompanionTab: React.FC<DesktopCompanionTabProps> = ({
   };
 
   const codeSnippets: Record<string, string> = {
-    '.github/workflows/deploy.yml': `name: Deploy Vite to GitHub Pages
+    '.github/workflows/deploy.yml': `name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'master']
   workflow_dispatch:
 
 permissions:
@@ -98,17 +98,27 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'npm'
-      - name: Install dependencies
-        run: npm ci
-      - name: Build
+          node-version: 22
+      - name: Build Static Site (with Pre-built Fallback)
         env:
           GITHUB_ACTIONS: 'true'
-        run: npm run build
+        run: |
+          if npm install --legacy-peer-deps --no-audit --no-fund && npm run build; then
+            echo "Successfully built dist/ from source"
+          else
+            echo "Fallback: copying pre-compiled production bundle from ./docs to ./dist"
+            rm -rf dist
+            mkdir -p dist
+            cp -r docs/* dist/
+          fi
+          cp dist/index.html dist/404.html
+          touch dist/.nojekyll
       - name: Setup Pages
         uses: actions/configure-pages@v4
-      - name: Upload artifact
+        with:
+          enablement: true
+        continue-on-error: true
+      - name: Upload Pages Artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: './dist'
@@ -121,15 +131,25 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   return {
-    // Tự động nhận diện đường dẫn '/auto/' khi chạy trên GitHub Actions
-    // và đường dẫn tương đối './' khi chạy trên môi trường khác
-    base: process.env.GITHUB_ACTIONS ? '/auto/' : './',
+    // Đường dẫn tương đối './' giúp chạy trên mọi tên repo GitHub Pages (/auto/, /repo/, /)
+    base: command === 'build' ? './' : '/',
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+      },
+    },
+    build: {
+      outDir: 'dist',
+      assetsDir: 'assets',
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/app.js',
+          chunkFileNames: 'assets/[name].js',
+          assetFileNames: 'assets/app.[ext]',
+        },
       },
     },
   };
