@@ -1,6 +1,7 @@
 export type TabType =
   | 'humanizer'
   | 'autotyper'
+  | 'simulator'
   | 'lesson5512'
   | 'examsuite'
   | 'mediastudio'

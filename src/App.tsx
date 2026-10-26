@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Header, ViewportDisplayMode } from './components/Header';
 import { HumanizeTab } from './components/HumanizeTab';
 import { AutoTyperTab } from './components/AutoTyperTab';
+import { ClassroomSimulatorTab } from './components/ClassroomSimulatorTab';
 import { Lesson5512Tab } from './components/Lesson5512Tab';
 import { ExamSuiteTab } from './components/ExamSuiteTab';
 import { MediaStudioTab } from './components/MediaStudioTab';
@@ -424,7 +425,10 @@ export default function App() {
   }, [addLog]);
 
   const isPedagogyTab =
-    activeTab === 'lesson5512' || activeTab === 'examsuite' || activeTab === 'mediastudio';
+    activeTab === 'lesson5512' ||
+    activeTab === 'examsuite' ||
+    activeTab === 'mediastudio' ||
+    activeTab === 'simulator';
 
   const currentBackupPayload: FullWorkspaceBackupPayload = {
     version: '3.0.0',
@@ -623,6 +627,17 @@ export default function App() {
             updateSettings={updateSettings}
             language={settings.language}
             preloadedText={preloadedTyperText}
+            onOpenSimulatorTab={() => setActiveTab('simulator')}
+            onLog={addLog}
+          />
+        )}
+
+        {/* DIGITAL TWIN CLASSROOM SIMULATOR (36 AI STUDENTS) */}
+        {activeTab === 'simulator' && (
+          <ClassroomSimulatorTab
+            language={settings.language}
+            initialLessonText={preloadedTyperText || coreInput}
+            onSyncToAutoTyper={handleSendToTyper}
             onLog={addLog}
           />
         )}
@@ -737,14 +752,6 @@ export default function App() {
             >
               <HelpCircle className="w-3.5 h-3.5" />
               <span>Hướng Dẫn & Tải Đa Định Dạng</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('sync')}
-              className="btn-3d btn-3d-cyan px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
-            >
-              <CloudUpload className="w-3.5 h-3.5" />
-              <span>Mã Sao Lưu: {settings.syncVaultKey || 'HTK-PRO-8899'}</span>
             </button>
           </div>
         </div>

@@ -18,6 +18,7 @@ import {
   Smartphone,
   Tv,
   Maximize2,
+  Users,
 } from 'lucide-react';
 import { TabType, Language } from '../types';
 
@@ -81,6 +82,16 @@ export const Header: React.FC<HeaderProps> = ({
         'bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-2 border-emerald-200 border-b-4 border-b-teal-900 shadow-[0_6px_18px_rgba(16,185,129,0.65)] scale-[1.02]',
       idleStyle:
         'bg-slate-800/95 text-emerald-200 border border-emerald-500/40 border-b-4 border-b-emerald-800 hover:bg-emerald-950/90 shadow-[0_4px_12px_rgba(16,185,129,0.28)]',
+    },
+    {
+      id: 'simulator',
+      labelVi: 'Phòng Lab Lớp Học Ảo (36 HS AI)',
+      labelEn: 'Digital Twin Classroom Lab',
+      icon: <Users className="w-4 h-4 text-fuchsia-200" />,
+      activeStyle:
+        'bg-gradient-to-r from-fuchsia-500 to-purple-600 text-white border-2 border-fuchsia-200 border-b-4 border-b-purple-950 shadow-[0_6px_18px_rgba(217,70,239,0.65)] scale-[1.02]',
+      idleStyle:
+        'bg-slate-800/95 text-fuchsia-200 border border-fuchsia-500/40 border-b-4 border-b-purple-800 hover:bg-purple-950/90 shadow-[0_4px_12px_rgba(217,70,239,0.28)]',
     },
     {
       id: 'lesson5512',
@@ -244,15 +255,6 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab('sync')}
-              className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap"
-              title="Sao lưu & Đồng bộ dữ liệu sang máy khác"
-            >
-              <CloudUpload className="w-4 h-4" />
-              <span className="hidden sm:inline">{isVi ? 'Mã Sao Lưu' : 'Backup Sync'}</span>
-            </button>
-
-            <button
               onClick={() => setSoundEnabled(!soundEnabled)}
               title={soundEnabled ? 'Âm thanh phím cơ: Đang bật' : 'Đã tắt âm thanh'}
               className={`btn-3d p-2 rounded-xl border ${
@@ -264,12 +266,56 @@ export const Header: React.FC<HeaderProps> = ({
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
 
-            <button
-              onClick={() => setLanguage(isVi ? 'en' : 'vi')}
-              className="btn-3d btn-3d-amber px-3 py-2 text-xs font-extrabold rounded-xl whitespace-nowrap"
-            >
-              {isVi ? 'VI' : 'EN'}
-            </button>
+            {/* Khung Chọn Ngôn Ngữ Tiếng Việt / Tiếng Anh kèm Logo Lá Cờ */}
+            <div className="inline-flex items-center gap-1 p-1 rounded-xl bg-slate-950/90 border-2 border-amber-400/80 shadow-[0_4px_12px_rgba(245,158,11,0.35)]">
+              <button
+                onClick={() => setLanguage('vi')}
+                className={`no-3d flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all ${
+                  isVi
+                    ? 'bg-gradient-to-r from-red-600 to-amber-500 text-white shadow-md scale-[1.03]'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+                title="Ngôn ngữ: Tiếng Việt"
+              >
+                {/* Vietnam Flag Logo SVG */}
+                <svg
+                  viewBox="0 0 30 20"
+                  className="w-5 h-3.5 rounded-[2px] border border-yellow-300/60 shrink-0 shadow-sm"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect width="30" height="20" fill="#DA251D" />
+                  <polygon
+                    points="15,3.5 16.4,7.8 20.9,7.8 17.3,10.5 18.6,14.8 15,12.1 11.4,14.8 12.7,10.5 9.1,7.8 13.6,7.8"
+                    fill="#FFFF00"
+                  />
+                </svg>
+                <span>Tiếng Việt</span>
+              </button>
+
+              <button
+                onClick={() => setLanguage('en')}
+                className={`no-3d flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all ${
+                  !isVi
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md scale-[1.03]'
+                    : 'text-slate-300 hover:text-white'
+                }`}
+                title="Language: English"
+              >
+                {/* UK Flag Logo SVG */}
+                <svg
+                  viewBox="0 0 30 20"
+                  className="w-5 h-3.5 rounded-[2px] border border-sky-200/60 shrink-0 shadow-sm"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <rect width="30" height="20" fill="#012169" />
+                  <path d="M0,0 L30,20 M30,0 L0,20" stroke="#FFFFFF" strokeWidth="4" />
+                  <path d="M0,0 L30,20 M30,0 L0,20" stroke="#C8102E" strokeWidth="2" />
+                  <path d="M15,0 V20 M0,10 H30" stroke="#FFFFFF" strokeWidth="6" />
+                  <path d="M15,0 V20 M0,10 H30" stroke="#C8102E" strokeWidth="3.5" />
+                </svg>
+                <span>English</span>
+              </button>
+            </div>
           </div>
         </div>
 

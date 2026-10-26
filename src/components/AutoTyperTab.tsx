@@ -21,12 +21,14 @@ import {
 import { Language, UserSettings } from '../types';
 import { TypingSimulator, TypingStats } from '../utils/typingEngine';
 import { soundSynth } from '../utils/audioSynth';
+import { LiveClassroomTwinPanel } from './ClassroomSimulatorTab';
 
 interface AutoTyperTabProps {
   settings: UserSettings;
   updateSettings: (partial: Partial<UserSettings>) => void;
   language: Language;
   preloadedText?: string;
+  onOpenSimulatorTab?: () => void;
   onLog: (msg: string, level?: 'info' | 'hotkey' | 'engine' | 'warning' | 'error') => void;
 }
 
@@ -35,6 +37,7 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
   updateSettings,
   language,
   preloadedText = '',
+  onOpenSimulatorTab,
   onLog,
 }) => {
   const isVi = language === 'vi';
@@ -551,6 +554,31 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Digital Twin Classroom Simulator Running in Parallel */}
+      <LiveClassroomTwinPanel
+        sourceText={targetText}
+        typedText={typedOutput || targetText}
+        isTyping={isTyping}
+        onInjectCopilotText={(injected, updatedFullText) => {
+          setTargetText(updatedFullText);
+          if (injected && typedOutput) {
+            setTypedOutput((prev) => `${prev}\n${injected.trim()}`);
+          }
+        }}
+        onPauseTyping={() => {
+          if (isTyping && !isPaused) {
+            handlePauseResume();
+          }
+        }}
+        onResumeTyping={() => {
+          if (isTyping && isPaused) {
+            handlePauseResume();
+          }
+        }}
+        onOpenFullSimulatorTab={onOpenSimulatorTab}
+        onLog={onLog}
+      />
     </div>
   );
 };
