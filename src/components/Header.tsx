@@ -13,10 +13,6 @@ import {
   Laptop,
   CloudUpload,
   HelpCircle,
-  Monitor,
-  Tablet,
-  Smartphone,
-  Tv,
   Maximize2,
   Users,
   Lock,
@@ -176,20 +172,6 @@ export const Header: React.FC<HeaderProps> = ({
       idleStyle:
         'bg-slate-800/95 text-slate-200 border border-slate-500/40 border-b-4 border-b-slate-900 hover:bg-slate-700/90 shadow-[0_4px_12px_rgba(100,116,139,0.25)]',
     },
-  ];
-
-  const displayModes: {
-    id: ViewportDisplayMode;
-    label: string;
-    icon: React.ReactNode;
-    btnColor: string;
-  }[] = [
-    { id: 'auto', label: 'Tự Động', icon: <Maximize2 className="w-3.5 h-3.5" />, btnColor: 'btn-3d-cyan' },
-    { id: 'pc', label: 'PC / Máy Bàn', icon: <Monitor className="w-3.5 h-3.5" />, btnColor: 'btn-3d-indigo' },
-    { id: 'laptop', label: 'Laptop', icon: <Laptop className="w-3.5 h-3.5" />, btnColor: 'btn-3d-emerald' },
-    { id: 'tablet', label: 'Máy Tính Bảng', icon: <Tablet className="w-3.5 h-3.5" />, btnColor: 'btn-3d-purple' },
-    { id: 'mobile', label: 'Điện Thoại', icon: <Smartphone className="w-3.5 h-3.5" />, btnColor: 'btn-3d-rose' },
-    { id: 'projector', label: 'Máy Chiếu', icon: <Tv className="w-3.5 h-3.5" />, btnColor: 'btn-3d-amber' },
   ];
 
   return (
@@ -357,28 +339,19 @@ export const Header: React.FC<HeaderProps> = ({
           })}
         </nav>
 
-        {/* 3D Multi-Device Auto-Scaling Display Mode Bar */}
+        {/* Chế độ Tự Động Co Dãn Toàn Màn Hình (Đã xóa khung nút PC/Laptop/Tablet/Điện Thoại/Máy Chiếu thủ công) */}
         <div className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-sky-500/40 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="font-bold text-cyan-300">
-            Chế độ hiển thị tự động co dãn:
+          <span className="font-bold text-cyan-300 flex items-center gap-1.5">
+            <Maximize2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Chế độ hiển thị: Tự Động Co Dãn Thông Minh Toàn Màn Hình (Auto-Responsive 100%)</span>
           </span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {displayModes.map((m) => {
-              const active = displayMode === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => setDisplayMode(m.id)}
-                  className={`btn-3d px-2.5 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 ${
-                    active ? m.btnColor : 'bg-slate-800 text-slate-300 border border-slate-700'
-                  }`}
-                >
-                  {m.icon}
-                  <span>{m.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <button
+            onClick={() => setDisplayMode('auto')}
+            className="btn-3d btn-3d-cyan px-3 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1.5"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span>Tự Động Co Dãn ({displayMode === 'auto' ? 'Đang Bật' : 'Kích Hoạt'})</span>
+          </button>
         </div>
       </div>
     </header>
