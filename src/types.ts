@@ -23,7 +23,6 @@ export interface UserSettings {
   strength: 'subtle' | 'standard' | 'strong';
   soProfileId: string;
   ollamaHost: string;
-  apiKeys: Record<string, string>;
   customPrompt: string;
   language: Language;
 }

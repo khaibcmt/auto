@@ -6,10 +6,10 @@ import { ProseRulesTab } from './components/ProseRulesTab';
 import { ModelCatalogTab } from './components/ModelCatalogTab';
 import { DesktopCompanionTab } from './components/DesktopCompanionTab';
 import { SystemLogTab } from './components/SystemLogTab';
-import { TabType, Language, UserSettings, AppLog } from './types';
+import { TabType, UserSettings, AppLog } from './types';
 import { DEFAULT_SYSTEM_PROMPT } from './data/proseRules';
 
-const STORAGE_KEY = 'autotyper_web_settings_v2';
+const STORAGE_KEY = 'autotyper_web_settings_v3';
 
 const DEFAULT_SETTINGS: UserSettings = {
   delayMin: 0.10,
@@ -25,7 +25,6 @@ const DEFAULT_SETTINGS: UserSettings = {
   strength: 'standard',
   soProfileId: 'none',
   ollamaHost: 'http://127.0.0.1:11434',
-  apiKeys: {},
   customPrompt: DEFAULT_SYSTEM_PROMPT,
   language: 'vi',
 };
@@ -66,13 +65,13 @@ export default function App() {
       id: 'log-1',
       timestamp: new Date().toLocaleTimeString(),
       level: 'info',
-      message: 'AutoTyper Studio initialized. Global hotkeys listener ready.',
+      message: 'AutoTyper Studio initialized. GitHub Pages (/auto/) & Full-Stack modes ready.',
     },
     {
       id: 'log-2',
       timestamp: new Date().toLocaleTimeString(),
       level: 'engine',
-      message: 'Humanize Engine connected. Active provider: Google Gemini (gemini-2.0-flash).',
+      message: 'Humanize Engine ready. Active model: Google Gemini 3.8 Flash (gemini-3.8-flash).',
     },
     {
       id: 'log-3',
@@ -120,13 +119,11 @@ export default function App() {
   // Keyboard shortcut listener within browser
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+Shift+H or Cmd+Shift+H -> go to Humanizer
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
         e.preventDefault();
         setActiveTab('humanizer');
         addLog('In-browser hotkey triggered: Ctrl+Shift+H (Humanizer Studio)', 'hotkey');
       }
-      // Ctrl+Alt+T or Ctrl+T (in non-input) -> go to AutoTyper
       if ((e.ctrlKey || e.metaKey) && e.altKey && e.key.toLowerCase() === 't') {
         e.preventDefault();
         setActiveTab('autotyper');
@@ -215,9 +212,9 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-            <span>AutoTyper & AI Humanizer Studio • Engine v2.4</span>
+            <span>AutoTyper & AI Humanizer Studio • Engine v2.5</span>
             <span className="text-zinc-700">|</span>
-            <span>Based on uploaded Python codebase</span>
+            <span>GitHub Pages & Full-Stack Ready</span>
           </div>
 
           <div className="flex items-center gap-4 text-zinc-400">

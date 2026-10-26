@@ -5,14 +5,10 @@ import {
   Download, 
   Copy, 
   Check, 
-  Code, 
-  ExternalLink, 
-  Folder, 
   FileCode, 
-  AlertTriangle,
-  Play,
   KeyRound,
-  Sparkles
+  CheckCircle2,
+  Globe
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 
@@ -29,13 +25,13 @@ export const DesktopCompanionTab: React.FC<DesktopCompanionTabProps> = ({
 }) => {
   const isVi = language === 'vi';
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
-  const [activeCodeFile, setActiveCodeFile] = useState<string>('human_type.py');
+  const [activeCodeFile, setActiveCodeFile] = useState<string>('.github/workflows/deploy.yml');
 
   const copyCommand = (cmd: string, id: string) => {
     navigator.clipboard.writeText(cmd);
     setCopiedCmd(id);
     setTimeout(() => setCopiedCmd(null), 2000);
-    onLog(`Copied command: ${cmd}`, 'info');
+    onLog(`Copied snippet: ${id}`, 'info');
   };
 
   const handleDownloadSettingsJson = () => {
@@ -52,10 +48,6 @@ export const DesktopCompanionTab: React.FC<DesktopCompanionTabProps> = ({
         humanize_hotkey: true,
         provider: settings.provider,
         model: settings.model,
-        openai_api_key: settings.apiKeys['openai'] || '',
-        anthropic_api_key: settings.apiKeys['anthropic'] || '',
-        google_api_key: settings.apiKeys['google'] || '',
-        groq_api_key: settings.apiKeys['groq'] || '',
         ollama_host: settings.ollamaHost,
         ollama_model: 'llama3.2',
         humanize_strength: settings.strength,
@@ -78,6 +70,71 @@ export const DesktopCompanionTab: React.FC<DesktopCompanionTabProps> = ({
   };
 
   const codeSnippets: Record<string, string> = {
+    '.github/workflows/deploy.yml': `name: Deploy Vite to GitHub Pages
+
+on:
+  push:
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        env:
+          GITHUB_ACTIONS: 'true'
+        run: npm run build
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4`,
+
+    'vite.config.ts': `import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import path from 'path';
+import {defineConfig} from 'vite';
+
+export default defineConfig(() => {
+  return {
+    // Tự động nhận diện đường dẫn '/auto/' khi chạy trên GitHub Actions
+    // và đường dẫn tương đối './' khi chạy trên môi trường khác
+    base: process.env.GITHUB_ACTIONS ? '/auto/' : './',
+    plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      },
+    },
+  };
+});`,
+
     'human_type.py': `# Human-like typing: variable timing, pauses, occasional typos and corrections.
 from __future__ import annotations
 import random
@@ -94,7 +151,6 @@ _NEIGHBORS = {
 
 def type_text(text: str, delay: float = 0.12, *, human: bool = True, typo_rate: float = 0.025,
               delay_min: float | None = None, delay_max: float | None = None) -> None:
-    # Simulates human keystrokes with realistic micro-pauses and QWERTY neighbor typos
     dmin = delay_min if delay_min is not None else delay
     dmax = delay_max if delay_max is not None else delay
     type_text_human(text, HumanTypingConfig(base_delay=(dmin + dmax) / 2, delay_min=dmin, delay_max=dmax, typo_rate=typo_rate, human=True))`,
@@ -105,14 +161,6 @@ def type_text(text: str, delay: float = 0.12, *, human: bool = True, typo_rate: 
 - Hard sentence cap: every sentence under 130 characters. Split run-ons with a period.
 - Use natural contractions (isn't, won't, that's, it's).
 - Return ONLY rewritten text without preamble."""`,
-
-    'hotkey_service.py': `# Global hotkeys via RegisterHotKey (Win32) with fallback
-from win_hotkeys import WinHotkeys
-
-TYPE_HOTKEYS = ("ctrl+t", "ctrl+alt+t")
-HUMANIZE_HOTKEYS = ("ctrl+alt+h", "ctrl+alt+j", "ctrl+shift+h", "ctrl+alt+shift+h")
-
-# Workflow: Select text -> Ctrl+C -> Ctrl+Shift+H -> Click field -> Ctrl+T`,
 
     'ollama_service.py': `# Ensure Ollama runs on CPU mode to avoid Windows GPU CUDA/PTX crashes
 def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_restart=False):
@@ -131,12 +179,12 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
           </div>
           <div>
             <h2 className="text-lg font-bold text-white">
-              {isVi ? 'Phần Mềm Desktop AutoTyper (Windows/Python)' : 'Desktop AutoTyper Companion (Windows/Python)'}
+              {isVi ? 'Triển Khai GitHub Pages & Bản Desktop AutoTyper' : 'GitHub Pages Deployment & Desktop AutoTyper'}
             </h2>
             <p className="text-xs text-zinc-300 mt-1">
               {isVi
-                ? 'Công cụ desktop chạy ẩn dưới khay hệ thống (Tray Icon), hỗ trợ phím tắt toàn hệ thống Ctrl+T và Ctrl+Shift+H.'
-                : 'System tray resident utility with global Win32 hotkeys Ctrl+T and Ctrl+Shift+H.'}
+                ? 'Đã cấu hình sẵn vite.config.ts (/auto/) và .github/workflows/deploy.yml để chạy mượt trên GitHub Pages lẫn Desktop.'
+                : 'Pre-configured with vite.config.ts (/auto/) and .github/workflows/deploy.yml for seamless GitHub Pages deployment.'}
             </p>
           </div>
         </div>
@@ -150,15 +198,65 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
         </button>
       </div>
 
+      {/* GitHub Pages Ready Status Card */}
+      <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-bold text-emerald-300 uppercase tracking-wider flex items-center gap-2">
+            <Globe className="w-4 h-4 text-emerald-400" />
+            <span>{isVi ? 'Trạng Thái Cấu Hình GitHub Pages (khaibcmt.github.io/auto/)' : 'GitHub Pages Configuration Status'}</span>
+          </h3>
+          <span className="text-xs font-mono px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+            ✓ READY TO DEPLOY
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
+          <div className="p-3.5 rounded-xl bg-zinc-950/90 border border-zinc-800 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>1. vite.config.ts</span>
+            </div>
+            <p className="text-xs text-zinc-300">
+              {isVi
+                ? 'Đã thiết lập base: "/auto/" khi build trên GitHub Actions và "./" để không bao giờ bị lỗi 404 tài nguyên tĩnh.'
+                : 'Configured base: "/auto/" on GitHub Actions and "./" relative paths so static assets never 404.'}
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-zinc-950/90 border border-zinc-800 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>2. .github/workflows/deploy.yml</span>
+            </div>
+            <p className="text-xs text-zinc-300">
+              {isVi
+                ? 'Tự động chạy npm ci && npm run build và đẩy thư mục ./dist lên GitHub Pages mỗi khi push vào nhánh main.'
+                : 'Automatically runs npm ci && npm run build and deploys ./dist to GitHub Pages on push to main.'}
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-xl bg-zinc-950/90 border border-zinc-800 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-400">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>3. Client-Side & Ollama Engine</span>
+            </div>
+            <p className="text-xs text-zinc-300">
+              {isVi
+                ? 'Hoạt động 100% ngay cả khi không có server Node.js nhờ bộ xử lý Client-Side Anti-AI Prose Engine & kết nối trực tiếp Local Ollama.'
+                : 'Runs 100% statically without Node.js server via Client-Side Prose Engine & direct browser-to-Ollama connection.'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Global Hotkey Workflow Diagram */}
       <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-3">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <KeyRound className="w-4 h-4 text-cyan-400" />
-          <span>{isVi ? 'Quy Trình 3 Bước Sử Dụng Hotkey Toàn Hệ Thống' : '3-Step Global Hotkey Workflow'}</span>
+          <span>{isVi ? 'Quy Trình 3 Bước Sử Dụng Hotkey Toàn Hệ Thống (Bản Desktop)' : '3-Step Global Hotkey Workflow (Desktop)'}</span>
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          {/* Step 1 */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800">
             <div className="flex items-center gap-2 text-xs font-mono text-cyan-400 font-bold mb-1">
               <span className="w-5 h-5 rounded-full bg-cyan-500/20 flex items-center justify-center">1</span>
@@ -172,7 +270,6 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
             </p>
           </div>
 
-          {/* Step 2 */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800">
             <div className="flex items-center gap-2 text-xs font-mono text-indigo-400 font-bold mb-1">
               <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center">2</span>
@@ -186,7 +283,6 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
             </p>
           </div>
 
-          {/* Step 3 */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800">
             <div className="flex items-center gap-2 text-xs font-mono text-emerald-400 font-bold mb-1">
               <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center">3</span>
@@ -206,11 +302,10 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
       <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-4">
         <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
           <Terminal className="w-4 h-4 text-emerald-400" />
-          <span>{isVi ? 'Hướng Dẫn Cài Đặt Và Chạy Cục Bộ (Windows Powershell)' : 'Quick Start (PowerShell on Windows)'}</span>
+          <span>{isVi ? 'Hướng Dẫn Chạy Cục Bộ (Windows PowerShell)' : 'Quick Start (PowerShell on Windows)'}</span>
         </h3>
 
         <div className="space-y-3 font-mono text-xs">
-          {/* Step 1 Command */}
           <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <span className="text-zinc-500 block mb-1"># 1. Tạo môi trường ảo và cài đặt thư viện</span>
@@ -224,7 +319,6 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
             </button>
           </div>
 
-          {/* Step 2 Command */}
           <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <span className="text-zinc-500 block mb-1"># 2. Khởi chạy giao diện Tray GUI (Run as Administrator)</span>
@@ -238,7 +332,6 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
             </button>
           </div>
 
-          {/* Step 3 Command */}
           <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <span className="text-zinc-500 block mb-1"># 3. Chạy Ollama chế độ CPU nếu GPU gặp lỗi CUDA 10054</span>
@@ -254,22 +347,22 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
         </div>
       </div>
 
-      {/* Embedded Code Viewer for the Project's Modules */}
+      {/* Embedded Code Viewer for Workflow & Python Modules */}
       <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FileCode className="w-4 h-4 text-cyan-400" />
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              {isVi ? 'Trình Duyệt Mã Nguồn Các Module Python' : 'Python Modules Source Explorer'}
+              {isVi ? 'Mã Nguồn Cấu Hình Deploy & Các Module Python' : 'Deployment Config & Python Modules Explorer'}
             </h3>
           </div>
 
-          <div className="flex gap-1 overflow-x-auto">
+          <div className="flex gap-1 overflow-x-auto pb-1">
             {Object.keys(codeSnippets).map((filename) => (
               <button
                 key={filename}
                 onClick={() => setActiveCodeFile(filename)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-colors ${
+                className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium whitespace-nowrap transition-colors ${
                   activeCodeFile === filename
                     ? 'bg-cyan-500 text-zinc-950 font-bold'
                     : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
@@ -281,8 +374,17 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
           </div>
         </div>
 
-        <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap overflow-x-auto max-h-72">
-          {codeSnippets[activeCodeFile]}
+        <div className="relative">
+          <button
+            onClick={() => copyCommand(codeSnippets[activeCodeFile], activeCodeFile)}
+            className="absolute right-3 top-3 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs flex items-center gap-1.5 border border-zinc-700"
+          >
+            {copiedCmd === activeCodeFile ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedCmd === activeCodeFile ? (isVi ? 'Đã chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
+          </button>
+          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap overflow-x-auto max-h-80">
+            {codeSnippets[activeCodeFile]}
+          </div>
         </div>
       </div>
     </div>

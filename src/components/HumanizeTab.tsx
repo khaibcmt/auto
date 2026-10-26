@@ -45,8 +45,8 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
   const [outputText, setOutputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [activeView, setActiveView] = useState<'editor' | 'analysis' | 'diff'>('editor');
   const [showPromptDetails, setShowPromptDetails] = useState(false);
+  const [lastEngineNote, setLastEngineNote] = useState<string | null>(null);
 
   // Analysis of input and output
   const inputAnalysis = useMemo(() => analyzeProse(inputText), [inputText]);
@@ -80,10 +80,11 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
     onLog(isVi ? 'Đã tải bộ câu hỏi mẫu phỏng vấn kỹ sư (answer.txt)' : 'Loaded sample interview assessment text (answer.txt)', 'info');
   };
 
-  // Perform Real API Humanization
+  // Perform AI Humanization (supports Server API, Direct Local Ollama, and Static GitHub Pages Client Engine)
   const handleAiHumanize = async () => {
     if (!inputText.trim()) return;
     setIsLoading(true);
+    setLastEngineNote(null);
     onLog(
       isVi 
         ? `Bắt đầu Humanize qua ${settings.provider} (${settings.model}), chế độ: ${settings.strength}...`
@@ -92,13 +93,57 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
     );
 
     try {
+      // 1. If Ollama is selected, try calling localhost Ollama directly from browser first (works even on GitHub Pages!)
+      if (settings.provider === 'ollama') {
+        try {
+          const host = (settings.ollamaHost || 'http://127.0.0.1:11434').replace(/\/$/, '');
+          const userMsg =
+            `Rewrite the SOURCE text per the system instructions. ` +
+            `Keep the same format (no new Q&A, headings, or code).\n\n` +
+            `--- SOURCE ---\n${inputText.trim()}\n--- END SOURCE ---`;
+
+          const ollamaRes = await fetch(`${host}/api/chat`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: settings.model || 'llama3.2',
+              stream: false,
+              messages: [
+                { role: 'system', content: composedSystemPrompt },
+                { role: 'user', content: userMsg },
+              ],
+              options: {
+                temperature: activeStrength.temperature,
+                num_predict: 8192,
+                num_gpu: 0,
+              },
+            }),
+          });
+
+          if (ollamaRes.ok) {
+            const ollamaData = await ollamaRes.json();
+            const raw = ollamaData?.message?.content || '';
+            const cleaned = stripRewritePreamble(raw);
+            if (cleaned) {
+              setOutputText(cleaned);
+              setLastEngineNote(isVi ? `Đã xử lý trực tiếp qua Local Ollama (${settings.model})` : `Processed via Local Ollama (${settings.model})`);
+              onLog(`Local Ollama humanize completed (${cleaned.length} chars)`, 'engine');
+              setIsLoading(false);
+              return;
+            }
+          }
+        } catch {
+          // Fall through to server / client engine
+        }
+      }
+
+      // 2. Call Backend API (/api/humanize)
       const payload = {
         text: inputText,
         provider: settings.provider,
         model: settings.model,
         systemPrompt: composedSystemPrompt,
         temperature: activeStrength.temperature,
-        apiKey: settings.apiKeys[settings.provider] || '',
         ollamaHost: settings.ollamaHost,
       };
 
@@ -109,35 +154,36 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
       });
 
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({ error: res.statusText }));
-        throw new Error(errData.error || `HTTP ${res.status}`);
+        throw new Error(`HTTP ${res.status}`);
       }
 
       const data = await res.json();
       const finalResult = data.result || '';
       setOutputText(finalResult);
+      setLastEngineNote(
+        isVi
+          ? `Đã xử lý qua AI Engine (${data.model || settings.model})`
+          : `Processed via AI Engine (${data.model || settings.model})`
+      );
       onLog(
         isVi
           ? `Humanize hoàn tất thành công! (${finalResult.length} ký tự)`
           : `Humanize completed successfully (${finalResult.length} chars)`,
         'engine'
       );
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      onLog(
-        isVi
-          ? `Lỗi gọi API: ${errMsg}. Đang kích hoạt bộ chuyển đổi thông minh cục bộ (Fallback Engine)...`
-          : `API Error: ${errMsg}. Triggering local smart rule-based fallback...`,
-        'warning'
-      );
-
-      // Smart rule-based fallback
+    } catch {
+      // 3. Seamless Static / Offline Fallback (for GitHub Pages or when offline)
       const fallback = ruleBasedHumanize(inputText, settings.strength);
       setOutputText(fallback);
+      setLastEngineNote(
+        isVi
+          ? 'Đã xử lý bằng Client-Side Anti-AI Prose Engine (Hỗ trợ tĩnh GitHub Pages / Offline)'
+          : 'Processed via Client-Side Anti-AI Prose Engine (Static / Offline Ready)'
+      );
       onLog(
         isVi
-          ? `Hoàn tất chuyển đổi cục bộ bằng bộ quy tắc Anti-AI Cliché (${fallback.length} ký tự).`
-          : `Applied rule-based anti-cliche transformation (${fallback.length} chars).`,
+          ? `Hoàn tất chuyển đổi bằng Client-Side Prose Engine (${fallback.length} ký tự).`
+          : `Completed rewrite via Client-Side Prose Engine (${fallback.length} chars).`,
         'info'
       );
     } finally {
@@ -150,6 +196,11 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
     if (!inputText.trim()) return;
     const res = ruleBasedHumanize(inputText, settings.strength);
     setOutputText(res);
+    setLastEngineNote(
+      isVi
+        ? 'Chuyển đổi tức thì bằng bộ quy tắc (< 130 ký tự/câu, xóa AI Cliché, thêm từ viết tắt)'
+        : 'Instant rule-based humanizer (< 130 chars/sentence, zero AI clichés, contractions)'
+    );
     onLog(
       isVi
         ? `Đã áp dụng chuyển đổi nhanh qua bộ quy tắc quy chuẩn câu < 130 ký tự và loại bỏ AI Cliché`
@@ -172,15 +223,15 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
               value={settings.provider}
               onChange={(e) => {
                 const prov = e.target.value;
-                const defaultModel = PROVIDERS_META[prov]?.defaultModel || 'gemini-2.0-flash';
+                const defaultModel = PROVIDERS_META[prov]?.defaultModel || 'gemini-3.8-flash';
                 updateSettings({ provider: prov, model: defaultModel });
-                onLog(`Switched provider to ${prov}`, 'info');
+                onLog(`Switched provider to ${prov} (${defaultModel})`, 'info');
               }}
               className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-sm text-zinc-100 font-medium focus:outline-none focus:border-cyan-500"
             >
               {Object.values(PROVIDERS_META).map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.name} {p.id === 'google' ? '(Gemini Native)' : p.id === 'ollama' ? '(Local Free)' : ''}
+                  {p.name} {p.id === 'google' ? '(Gemini 3.8 / 4)' : p.id === 'ollama' ? '(Local CPU/GPU)' : ''}
                 </option>
               ))}
             </select>
@@ -189,7 +240,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
           {/* Model Select */}
           <div>
             <label className="block text-xs font-semibold text-zinc-400 mb-1.5 uppercase tracking-wider">
-              {isVi ? 'Mô hình AI' : 'Active Model'}
+              {isVi ? 'Mô hình AI mới nhất' : 'Active AI Model'}
             </label>
             <select
               value={settings.model}
@@ -286,7 +337,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Pane: Original Input */}
         <div className="flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
-          {/* Header */}
           <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-zinc-400" />
@@ -312,7 +362,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             </div>
           </div>
 
-          {/* Text Area */}
           <div className="relative flex-1 p-4 bg-zinc-950/50">
             <textarea
               value={inputText}
@@ -323,7 +372,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             />
           </div>
 
-          {/* Input Footer & Analysis Pill */}
           <div className="px-4 py-2.5 bg-zinc-950/90 border-t border-zinc-800 flex flex-wrap items-center justify-between text-xs text-zinc-400 gap-2">
             <div className="flex items-center gap-3 font-mono text-[11px]">
               <span>{inputAnalysis.totalChars} chars</span>
@@ -332,7 +380,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
               <span>•</span>
               <span>{inputAnalysis.sentenceCount} sents</span>
             </div>
-            {/* Quick stats on input */}
             <div className="flex items-center gap-2">
               {inputAnalysis.overLimitCount > 0 ? (
                 <span className="inline-flex items-center gap-1 text-amber-400 font-mono text-[11px] bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
@@ -351,7 +398,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
 
         {/* Right Pane: Humanized Result */}
         <div className="flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
-          {/* Header */}
           <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -365,7 +411,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
               )}
             </div>
 
-            {/* Action buttons */}
             <div className="flex items-center gap-2">
               {outputText && (
                 <>
@@ -389,7 +434,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             </div>
           </div>
 
-          {/* Text Area / View */}
           <div className="relative flex-1 p-4 bg-zinc-950/50">
             {isLoading ? (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center space-y-3">
@@ -405,12 +449,20 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
                 </p>
               </div>
             ) : outputText ? (
-              <textarea
-                value={outputText}
-                onChange={(e) => setOutputText(e.target.value)}
-                rows={14}
-                className="w-full h-full bg-transparent text-sm text-emerald-300/90 font-mono leading-relaxed resize-none focus:outline-none"
-              />
+              <div className="h-full flex flex-col">
+                <textarea
+                  value={outputText}
+                  onChange={(e) => setOutputText(e.target.value)}
+                  rows={13}
+                  className="w-full flex-1 bg-transparent text-sm text-emerald-300/90 font-mono leading-relaxed resize-none focus:outline-none"
+                />
+                {lastEngineNote && (
+                  <div className="mt-2 pt-2 border-t border-zinc-800/70 text-[11px] font-mono text-cyan-400 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span>{lastEngineNote}</span>
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="h-full min-h-[300px] flex flex-col items-center justify-center text-center p-6 text-zinc-400">
                 <Sparkles className="w-8 h-8 mb-2 opacity-30 text-cyan-400" />
@@ -426,7 +478,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             )}
           </div>
 
-          {/* Output Footer & Analysis Pill */}
           <div className="px-4 py-2.5 bg-zinc-950/90 border-t border-zinc-800 flex flex-wrap items-center justify-between text-xs text-zinc-400 gap-2">
             <div className="flex items-center gap-3 font-mono text-[11px]">
               <span>{outputAnalysis.totalChars} chars</span>
@@ -453,26 +504,24 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
       {/* Action Buttons Row */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-zinc-900 border border-zinc-800">
         <div className="flex items-center gap-2 text-xs text-zinc-400">
-          <HelpCircle className="w-4 h-4 text-zinc-400" />
+          <HelpCircle className="w-4 h-4 text-zinc-400 shrink-0" />
           <span>
             {isVi 
-              ? 'Phím tắt nhanh: Chọn văn bản và nhấn Ctrl+Shift+H trên bản Desktop hoặc chạy giả lập bên tab AutoTyper.'
-              : 'Shortcut tip: Use Ctrl+Shift+H to humanize clipboard on desktop or test in AutoTyper simulator.'}
+              ? 'Tương thích hoàn toàn cả trên AI Studio (Server-Side Gemini) và GitHub Pages tĩnh (Client-Side Prose Engine + Local Ollama).'
+              : 'Works seamlessly on AI Studio (Server-Side Gemini) and static GitHub Pages (Client-Side Prose Engine + Local Ollama).'}
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Quick Local Rule Humanize */}
           <button
             onClick={handleQuickRuleHumanize}
             disabled={isLoading || !inputText.trim()}
             className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-semibold transition-colors flex items-center gap-2 border border-zinc-700 disabled:opacity-50"
           >
             <Zap className="w-4 h-4 text-amber-400" />
-            <span>{isVi ? 'Chuyển Đổi Nhanh (Local Rules)' : 'Quick Rule Humanize'}</span>
+            <span>{isVi ? 'Chuyển Đổi Nhanh (Instant Rules)' : 'Quick Rule Humanize'}</span>
           </button>
 
-          {/* Main AI Humanize */}
           <button
             onClick={handleAiHumanize}
             disabled={isLoading || !inputText.trim()}
@@ -499,11 +548,10 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Metric 1: Human Score */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-400">{isVi ? 'Điểm Người Viết (Human Score)' : 'Human Score'}</p>
-              <p className={`text-2xl font-bold font-mono mt-1 ${outputAnalysis.verdictColor}`}>
+              <p className={`text-2xl font-bold font-mono mt-1 ${outputText ? outputAnalysis.verdictColor : inputAnalysis.verdictColor}`}>
                 {outputText ? `${outputAnalysis.humanScore}%` : `${inputAnalysis.humanScore}%`}
               </p>
               <p className="text-[11px] text-zinc-400 mt-0.5">
@@ -511,11 +559,10 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-zinc-900 flex items-center justify-center border border-zinc-800">
-              <CheckCircle2 className={`w-6 h-6 ${outputAnalysis.verdictColor}`} />
+              <CheckCircle2 className={`w-6 h-6 ${outputText ? outputAnalysis.verdictColor : inputAnalysis.verdictColor}`} />
             </div>
           </div>
 
-          {/* Metric 2: Over Limit Sentences */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-400">{isVi ? 'Câu Vượt 130 Ký Tự (> 130 chars)' : 'Sentences > 130 Chars'}</p>
@@ -531,7 +578,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             </div>
           </div>
 
-          {/* Metric 3: AI Cliches Found */}
           <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
             <div>
               <p className="text-xs text-zinc-400">{isVi ? 'Từ Ngữ AI Clichés Còn Lại' : 'AI Clichés Present'}</p>
@@ -548,7 +594,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
           </div>
         </div>
 
-        {/* Cliché Breakdown if any */}
         {(outputText ? outputAnalysis.clichéMatches : inputAnalysis.clichéMatches).length > 0 && (
           <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs">
             <span className="font-semibold text-amber-300">

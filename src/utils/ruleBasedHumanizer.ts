@@ -1,6 +1,7 @@
 /**
  * Direct port of humanize_engine.py post-processing (_strip_rewrite_preamble, _clean_prose)
- * plus client-side intelligent rule-based humanizer.
+ * plus multi-pass client-side humanizer engine for static deployments (e.g., GitHub Pages)
+ * and instant zero-latency rewriting.
  */
 
 import { AI_CLICHES } from '../data/proseRules';
@@ -32,14 +33,36 @@ const CONTRACTION_REPLACEMENTS: [RegExp, string][] = [
   [/\bI would\b/gi, "I'd"],
   [/\bI will\b/gi, "I'll"],
   [/\bI have\b/gi, "I've"],
+  [/\bI am\b/gi, "I'm"],
+  [/\byou are\b/gi, "you're"],
   [/\byou will\b/gi, "you'll"],
   [/\byou have\b/gi, "you've"],
+  [/\bthey are\b/gi, "they're"],
   [/\bthey will\b/gi, "they'll"],
+  [/\bwe are\b/gi, "we're"],
   [/\bwe will\b/gi, "we'll"]
 ];
 
+const SENIOR_PHRASE_TRANSFORMS: [RegExp, string][] = [
+  [/\bIn order to\b/g, 'To'],
+  [/\bin order to\b/g, 'to'],
+  [/\bDue to the fact that\b/g, 'Because'],
+  [/\bdue to the fact that\b/g, 'because'],
+  [/\bAt the end of the day,\s*/gi, ''],
+  [/\bIt is worth noting that\s*/gi, 'Note that '],
+  [/\bIt's worth noting that\s*/gi, 'Note that '],
+  [/\bIt is important to remember that\s*/gi, 'Remember: '],
+  [/\butilize\b/gi, 'use'],
+  [/\butilizing\b/gi, 'using'],
+  [/\bfacilitate\b/gi, 'help'],
+  [/\bsubsequently\b/gi, 'then'],
+  [/\bnevertheless\b/gi, 'still'],
+  [/\bconsequently\b/gi, 'so'],
+  [/\bmoreover\b/gi, 'also'],
+  [/\badditionally\b/gi, 'plus']
+];
+
 export function cleanProse(chunk: string): string {
-  // Normalize smart quotes, dashes, non-breaking spaces
   let text = chunk
     .replace(/[               　]/g, ' ')
     .replace(/[​‌‍⁠﻿­]/g, '')
@@ -62,7 +85,6 @@ export function cleanProse(chunk: string): string {
 
 export function stripRewritePreamble(text: string): string {
   let out = text.trim();
-  // Strip code block wrap if the entire output was wrapped in one markdown codeblock
   const codeBlockMatch = out.match(/^```[\w+-]*\n([\s\S]*?)\n?```$/);
   if (codeBlockMatch && !codeBlockMatch[1].includes('```')) {
     out = codeBlockMatch[1].trim();
@@ -71,18 +93,16 @@ export function stripRewritePreamble(text: string): string {
   out = out.replace(PREAMBLE_REGEX, '');
   out = out.replace(POSTAMBLE_REGEX, '');
 
-  // Strip leading/trailing quote marks if the whole answer was enclosed
   if (
     out.length > 1 &&
-    (out.startsWith('"') && out.endsWith('"')) ||
-    (out.startsWith("'") && out.endsWith("'"))
+    ((out.startsWith('"') && out.endsWith('"')) ||
+      (out.startsWith("'") && out.endsWith("'")))
   ) {
     if ((out.match(new RegExp(`\\${out[0]}`, 'g')) || []).length === 2) {
       out = out.slice(1, -1);
     }
   }
 
-  // Preserve fenced code while cleaning prose
   const parts = out.split('```');
   for (let i = 0; i < parts.length; i += 2) {
     parts[i] = cleanProse(parts[i]);
@@ -92,9 +112,28 @@ export function stripRewritePreamble(text: string): string {
 }
 
 /**
- * Fast client-side smart humanizer for immediate zero-latency rewriting
- * and offline/no-key usage. Applies contractions, replaces cliches,
- * splits run-ons under 130 chars, and ensures senior dev tone.
+ * Splits a single sentence that exceeds 130 characters at natural clause boundaries.
+ */
+function splitLongSentence(sentence: string): string {
+  if (sentence.length <= 130) return sentence;
+
+  // 1. Replace semicolons with periods and capitalize next letter
+  let current = sentence.replace(/;\s+([a-z])/g, (_, ch) => `. ${ch.toUpperCase()}`);
+
+  // 2. Split at ", which ", ", and ", ", but ", ", so "
+  current = current
+    .replace(/,\s+which\s+/g, '. That ')
+    .replace(/,\s+and\s+/g, '. Also, ')
+    .replace(/,\s+but\s+/g, '. However, ')
+    .replace(/,\s+so\s+/g, '. So ')
+    .replace(/,\s+because\s+/g, '. That is because ');
+
+  return current;
+}
+
+/**
+ * Multi-pass client-side smart humanizer for immediate zero-latency rewriting
+ * and static hosting (GitHub Pages) compatibility.
  */
 export function ruleBasedHumanize(
   text: string,
@@ -104,7 +143,7 @@ export function ruleBasedHumanize(
 
   let processed = stripRewritePreamble(text);
 
-  // Preserve code blocks during transformation
+  // Preserve code blocks and inline code during transformation
   const codeBlocks: string[] = [];
   processed = processed.replace(/```[\s\S]*?```/g, (match) => {
     codeBlocks.push(match);
@@ -116,43 +155,41 @@ export function ruleBasedHumanize(
     processed = processed.replace(regex, replacement);
   }
 
-  // 2. Remove / Replace AI Clichés
-  for (const item of AI_CLICHES) {
-    const reg = new RegExp(`\\b${item.phrase}\\b`, 'gi');
-    if (strength === 'subtle') {
-      // Subtle: just replace direct robotic terms
-      if (['furthermore', 'in conclusion', "it's important to note", 'delve into', 'delve', 'leverage'].includes(item.phrase)) {
-        const replacement = item.replacement.split('/')[0].trim();
-        processed = processed.replace(reg, replacement);
-      }
-    } else {
-      // Standard & Strong: replace all clichés with idiomatic phrasing
-      const choices = item.replacement.split('/').map((s) => s.trim());
-      const chosen = choices[Math.floor(Math.random() * choices.length)];
-      processed = processed.replace(reg, chosen);
+  // 2. Apply Senior Engineer Phrase Tightening
+  if (strength !== 'subtle') {
+    for (const [regex, replacement] of SENIOR_PHRASE_TRANSFORMS) {
+      processed = processed.replace(regex, replacement);
     }
   }
 
-  // 3. Sentence Length Cap (< 130 chars)
-  // Split long sentences at semicolon or coordinating conjunctions (and, but, because)
+  // 3. Remove / Replace AI Clichés
+  for (const item of AI_CLICHES) {
+    const reg = new RegExp(`\\b${item.phrase}\\b`, 'gi');
+    const choices = item.replacement.split('/').map((s) => s.trim());
+    const chosen = strength === 'strong' ? choices[choices.length - 1] : choices[0];
+    processed = processed.replace(reg, chosen);
+  }
+
+  // 4. Enforce Sentence Length Cap (< 130 chars)
   const lines = processed.split('\n');
   const transformedLines = lines.map((line) => {
-    if (line.startsWith('__CODE_BLOCK_') || line.trim().startsWith('#') || line.trim().length <= 130) {
+    const trimmed = line.trim();
+    if (
+      trimmed.startsWith('__CODE_BLOCK_') ||
+      trimmed.startsWith('#') ||
+      trimmed.startsWith('import ') ||
+      trimmed.startsWith('from ') ||
+      trimmed.startsWith('def ') ||
+      trimmed.startsWith('for ') ||
+      trimmed.startsWith('while ') ||
+      trimmed.startsWith('if ') ||
+      line.startsWith('    ') ||
+      trimmed.length <= 130
+    ) {
       return line;
     }
 
-    // Split at semicolons
-    let modified = line.replace(/;\s+/g, '. ');
-
-    // If still long, break at conjunctions like " and ", " but "
-    if (modified.length > 130 && strength !== 'subtle') {
-      modified = modified.replace(/,\s+which\s+/g, '. That ');
-      modified = modified.replace(/,\s+and\s+/g, '. And ');
-      modified = modified.replace(/,\s+so\s+that\s+/g, '. So ');
-      modified = modified.replace(/\s+in\s+order\s+to\s+/g, ' to ');
-    }
-
-    return modified;
+    return splitLongSentence(line);
   });
 
   processed = transformedLines.join('\n');

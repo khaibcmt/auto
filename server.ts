@@ -20,6 +20,23 @@ const isProd = process.env.NODE_ENV === 'production';
 
 app.use(express.json({ limit: '10mb' }));
 
+// Shared Gemini client utility per @google/genai guidelines
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: {
+    headers: {
+      'User-Agent': 'aistudio-build',
+    },
+  },
+});
+
+const VALID_GEMINI_MODELS = new Set([
+  'gemini-3.8-flash',
+  'gemini-4-argon',
+  'gemini-3.1-flash-lite',
+  'gemini-flash-latest',
+]);
+
 // Helper for cleaning AI output
 function cleanProseServer(chunk: string): string {
   let text = chunk
@@ -58,12 +75,12 @@ function stripPreambleServer(text: string): string {
 }
 
 // API Routes
-app.get('/api/status', async (req, res) => {
-  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+app.get('/api/status', async (_req, res) => {
+  const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
   res.json({
     status: 'ok',
     geminiConfigured: hasGeminiKey,
-    defaultModel: 'gemini-2.0-flash',
+    defaultModel: 'gemini-3.8-flash',
     nodeEnv: process.env.NODE_ENV || 'development',
   });
 });
@@ -73,10 +90,9 @@ app.post('/api/humanize', async (req, res) => {
     const {
       text,
       provider = 'google',
-      model = 'gemini-2.0-flash',
+      model = 'gemini-3.8-flash',
       systemPrompt,
       temperature = 0.65,
-      apiKey,
       ollamaHost = 'http://127.0.0.1:11434',
     } = req.body;
 
@@ -89,94 +105,7 @@ app.post('/api/humanize', async (req, res) => {
       `Keep the same format (no new Q&A, headings, or code).\n\n` +
       `--- SOURCE ---\n${text.trim()}\n--- END SOURCE ---`;
 
-    // 1. Google Gemini Provider
-    if (provider === 'google') {
-      const activeKey = apiKey || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-      if (!activeKey) {
-        return res.status(400).json({
-          error: 'No Gemini API key found. Please provide an API key in Settings or set GEMINI_API_KEY.',
-        });
-      }
-
-      const ai = new GoogleGenAI({ apiKey: activeKey });
-      let targetModel = model || 'gemini-3.8-flash';
-      if (targetModel === 'gemini-2.0-flash' || targetModel === 'gemini-1.5-flash') {
-        targetModel = 'gemini-3.8-flash';
-      }
-
-      const candidateModels = [targetModel, 'gemini-2.5-flash'];
-      const modelsToTry = Array.from(new Set(candidateModels));
-      let rawText = '';
-
-      for (const tryModel of modelsToTry) {
-        try {
-          const timeoutPromise = new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('Timeout calling model')), 8000)
-          );
-          const callPromise = ai.models.generateContent({
-            model: tryModel,
-            contents: userMessage,
-            config: {
-              systemInstruction: systemPrompt || undefined,
-              temperature: typeof temperature === 'number' ? temperature : 0.65,
-            },
-          });
-
-          const response = await Promise.race([callPromise, timeoutPromise]);
-          if (response && response.text) {
-            rawText = response.text;
-            targetModel = tryModel;
-            break;
-          }
-        } catch {
-          // Continue to next candidate
-        }
-      }
-
-      // If cloud model temporarily unavailable, apply our rule-based humanizer engine
-      if (!rawText) {
-        // Fallback: rule-based cleanup
-        let fallback = text
-          .replace(/\bdo not\b/gi, "don't")
-          .replace(/\bdoes not\b/gi, "doesn't")
-          .replace(/\bcannot\b/gi, "can't")
-          .replace(/\bwill not\b/gi, "won't")
-          .replace(/\bis not\b/gi, "isn't")
-          .replace(/\bit is\b/gi, "it's")
-          .replace(/\bthat is\b/gi, "that's")
-          .replace(/\bI would\b/gi, "I'd")
-          .replace(/\bfurthermore\b/gi, "also")
-          .replace(/\bin conclusion\b/gi, "overall")
-          .replace(/\bdelve into\b/gi, "explore")
-          .replace(/\bdelve\b/gi, "look into")
-          .replace(/\bleverage\b/gi, "use")
-          .replace(/\brobust\b/gi, "solid")
-          .replace(/\bcomprehensive\b/gi, "thorough")
-          .replace(/\bplays a crucial role\b/gi, "matters a lot");
-        
-        fallback = stripPreambleServer(fallback);
-        return res.json({
-          success: true,
-          provider: 'google-rule-fallback',
-          model: 'rule-based-engine',
-          result: fallback,
-          charCount: fallback.length,
-          note: 'Applied local senior dev rule engine due to temporary cloud model spike',
-        });
-      }
-
-      const finished = stripPreambleServer(rawText);
-
-      return res.json({
-        success: true,
-        provider: 'google',
-        model: targetModel,
-        result: finished,
-        charCount: finished.length,
-      });
-    }
-
-    // 2. Local Ollama Provider
+    // Local Ollama Provider if explicitly requested and reachable
     if (provider === 'ollama') {
       const host = (ollamaHost || 'http://127.0.0.1:11434').replace(/\/$/, '');
       try {
@@ -198,91 +127,70 @@ app.post('/api/humanize', async (req, res) => {
           }),
         });
 
-        if (!ollamaRes.ok) {
-          const errText = await ollamaRes.text();
-          return res.status(502).json({
-            error: `Ollama error: ${errText || ollamaRes.statusText}`,
+        if (ollamaRes.ok) {
+          const data = (await ollamaRes.json()) as { message?: { content?: string } };
+          const raw = data?.message?.content || '';
+          const finished = stripPreambleServer(raw);
+          return res.json({
+            success: true,
+            provider: 'ollama',
+            model,
+            result: finished,
+            charCount: finished.length,
           });
         }
-
-        const data = await ollamaRes.json() as { message?: { content?: string } };
-        const raw = data?.message?.content || '';
-        const finished = stripPreambleServer(raw);
-        return res.json({
-          success: true,
-          provider: 'ollama',
-          model,
-          result: finished,
-          charCount: finished.length,
-        });
-      } catch (ollamaErr: unknown) {
-        const message = ollamaErr instanceof Error ? ollamaErr.message : String(ollamaErr);
-        return res.status(503).json({
-          error: `Could not reach local Ollama at ${host}. Make sure 'ollama serve' is running. (${message})`,
-        });
+      } catch {
+        // Fall through to Gemini cloud engine if local Ollama is not running
       }
     }
 
-    // 3. OpenAI / Groq / OpenRouter / Mistral / Together (OpenAI-compatible APIs)
-    const baseUrls: Record<string, string> = {
-      openai: 'https://api.openai.com/v1',
-      groq: 'https://api.groq.com/openai/v1',
-      openrouter: 'https://openrouter.ai/api/v1',
-      mistral: 'https://api.mistral.ai/v1',
-      together: 'https://api.together.xyz/v1',
-    };
+    // Use Server-Side Gemini SDK for Google and cloud fallback
+    let targetModel = VALID_GEMINI_MODELS.has(model) ? model : 'gemini-3.8-flash';
+    const candidateModels = Array.from(
+      new Set([targetModel, 'gemini-3.8-flash', 'gemini-3.1-flash-lite', 'gemini-flash-latest'])
+    );
 
-    const targetBase = baseUrls[provider];
-    if (targetBase) {
-      if (!apiKey) {
-        return res.status(400).json({
-          error: `API key required for ${provider}. Please enter your key in Settings.`,
+    let rawText = '';
+    for (const tryModel of candidateModels) {
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout calling model')), 9000)
+        );
+        const callPromise = ai.models.generateContent({
+          model: tryModel,
+          contents: userMessage,
+          config: {
+            systemInstruction: systemPrompt || undefined,
+            temperature: typeof temperature === 'number' ? temperature : 0.65,
+          },
         });
+
+        const response = await Promise.race([callPromise, timeoutPromise]);
+        if (response && response.text) {
+          rawText = response.text;
+          targetModel = tryModel;
+          break;
+        }
+      } catch {
+        // Try next candidate
       }
+    }
 
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      };
-      if (provider === 'openrouter') {
-        headers['HTTP-Referer'] = 'https://ai.studio.google.com';
-        headers['X-Title'] = 'AutoTyper Humanize Studio';
-      }
-
-      const openAiRes = await fetch(`${targetBase}/chat/completions`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: systemPrompt || '' },
-            { role: 'user', content: userMessage },
-          ],
-          temperature: temperature || 0.65,
-        }),
-      });
-
-      if (!openAiRes.ok) {
-        const errText = await openAiRes.text();
-        return res.status(openAiRes.status).json({
-          error: `${provider} API error: ${errText}`,
-        });
-      }
-
-      const data = await openAiRes.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const raw = data?.choices?.[0]?.message?.content || '';
-      const finished = stripPreambleServer(raw);
-
-      return res.json({
-        success: true,
-        provider,
-        model,
-        result: finished,
-        charCount: finished.length,
+    if (!rawText) {
+      return res.status(503).json({
+        error: 'Cloud model temporarily busy; using client-side prose engine.',
       });
     }
 
-    return res.status(400).json({ error: `Unsupported provider: ${provider}` });
+    const finished = stripPreambleServer(rawText);
+
+    return res.json({
+      success: true,
+      provider: 'google',
+      model: targetModel,
+      result: finished,
+      charCount: finished.length,
+    });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
     console.error('Humanize error:', err);
@@ -306,7 +214,7 @@ async function startServer() {
   } else {
     const distPath = path.resolve(__dirname, 'dist');
     app.use(express.static(distPath));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   }
