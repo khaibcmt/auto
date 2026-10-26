@@ -1,0 +1,6 @@
+{
+  "name": "AutoTyper & AI Humanizer Studio",
+  "description": "Nền tảng Humanize văn bản AI chống phát hiện và Bộ giả lập gõ phím tự nhiên đa tính năng với quy tắc câu chuẩn senior engineer.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
