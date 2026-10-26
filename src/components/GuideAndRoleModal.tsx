@@ -55,14 +55,15 @@ const GUIDE_REGISTRY_STORAGE_KEY = 'autotyper_studio_pro_v3_auto_guide_registry'
 export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
   {
     id: 'feat-1-humanizer-autotyper',
-    code: 'PHÂN HỆ 01',
+    code: 'PHÂN HỆ 01 · FULLSCREEN PRO',
     versionTag: 'v2.4 → v3.0 VIP',
-    title: 'AI Humanizer PRO & AutoTyper Simulator (Bảo Tồn 100% + Âm Thanh Phím Cơ)',
+    title: 'AI Humanizer PRO & AutoTyper Simulator (Có Chế Độ Full Màn Hình Để Trình Chiếu)',
     roleSummary:
-      'Chuyển hóa văn bản AI thành giọng văn sư phạm tự nhiên (nhiệt độ T=0) và mô phỏng gõ phím thời gian thực có nhịp thở người thật, chống đơ giật trình duyệt.',
+      'Chuyển hóa văn bản AI thành giọng văn sư phạm tự nhiên (nhiệt độ T=0) và mô phỏng gõ phím thời gian thực có Chế Độ Full Màn Hình Trình Chiếu (3 phông nền Sân Khấu 3D / Bảng Xanh / Giấy Trắng 12pt, phóng to chữ máy chiếu 12pt–48pt).',
     usageGuide:
-      'Dán văn bản vào AI Humanizer PRO để làm mượt câu chữ -> Bấm chuyển sang AutoTyper Simulator để trình diễn gõ tự động kèm âm thanh phím cơ và Lớp học ảo chạy song song.',
+      'Dán văn bản vào AI Humanizer PRO hoặc AutoTyper Simulator -> Bấm nút "Full Màn Hình Trình Chiếu" để phóng to toàn màn hình trên máy chiếu hội trường, tùy chỉnh tốc độ gõ Chậm/Chuẩn/Nhanh, cỡ chữ và âm thanh phím cơ.',
     highlightColor: 'cyan',
+    isAutoDetectedUpgrade: true,
   },
   {
     id: 'feat-2-digital-twin-classroom',
