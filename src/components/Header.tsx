@@ -19,6 +19,7 @@ import {
   Tv,
   Maximize2,
   Users,
+  Lock,
 } from 'lucide-react';
 import { TabType, Language } from '../types';
 
@@ -35,6 +36,7 @@ interface HeaderProps {
   currentModel: string;
   logCount: number;
   onOpenGuide: () => void;
+  onOpenSecurityBackup?: () => void;
   displayMode: ViewportDisplayMode;
   setDisplayMode: (mode: ViewportDisplayMode) => void;
 }
@@ -50,6 +52,7 @@ export const Header: React.FC<HeaderProps> = ({
   currentModel,
   logCount,
   onOpenGuide,
+  onOpenSecurityBackup,
   displayMode,
   setDisplayMode,
 }) => {
@@ -235,6 +238,22 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right 3D Quick Controls */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Nhập Key Sao Lưu & Chế Độ Bảo Mật Dữ Liệu (Tuyệt đối không hiện mật khẩu) */}
+            <button
+              onClick={() => {
+                if (onOpenSecurityBackup) {
+                  onOpenSecurityBackup();
+                } else {
+                  setActiveTab('sync');
+                }
+              }}
+              className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap"
+              title="Nhập Key sao lưu dữ liệu (Ẩn mật khẩu ••••••••) & Chế độ bảo mật dữ liệu"
+            >
+              <Lock className="w-4 h-4 text-yellow-200" />
+              <span>{isVi ? 'Nhập Key Sao Lưu & Bảo Mật' : 'Backup Key & Security'}</span>
+            </button>
+
             {/* Nút Hướng Dẫn Sử Dụng & Vai Trò Của Web */}
             <button
               onClick={onOpenGuide}

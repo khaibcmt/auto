@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  Terminal, 
-  Trash2, 
-  Download, 
-  Check, 
-  Filter, 
-  Clock, 
-  AlertCircle,
-  Sparkles,
-  Command
+import {
+  Terminal,
+  Trash2,
+  Download,
+  Filter,
+  Plus,
+  Edit3,
+  RotateCcw,
 } from 'lucide-react';
 import { AppLog, Language } from '../types';
 
@@ -24,11 +22,21 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
   language,
 }) => {
   const isVi = language === 'vi';
+  const [localLogs, setLocalLogs] = useState<AppLog[]>(logs);
+  const [savedLogsBackup, setSavedLogsBackup] = useState<AppLog[]>(logs);
+  const [isEditingLogs, setIsEditingLogs] = useState<boolean>(false);
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [autoScroll, setAutoScroll] = useState<boolean>(true);
   const logEndRef = useRef<HTMLDivElement | null>(null);
 
-  const filteredLogs = logs.filter((l) => {
+  useEffect(() => {
+    setLocalLogs(logs);
+    if (logs.length > 0) {
+      setSavedLogsBackup(logs);
+    }
+  }, [logs]);
+
+  const filteredLogs = localLogs.filter((l) => {
     if (filterLevel === 'all') return true;
     return l.level === filterLevel;
   });
@@ -37,10 +45,12 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
     if (autoScroll && logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [logs, autoScroll]);
+  }, [localLogs, autoScroll]);
 
   const handleExportLogs = () => {
-    const text = logs.map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`).join('\n');
+    const text = localLogs
+      .map((l) => `[${l.timestamp}] [${l.level.toUpperCase()}] ${l.message}`)
+      .join('\n');
     const blob = new Blob([text], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -67,15 +77,15 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Top Action Bar */}
-      <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
+      {/* Top Action Bar with Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
+      <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 flex flex-col lg:flex-row lg:items-center justify-between gap-3 shadow-xl">
         <div className="flex items-center gap-2">
           <Terminal className="w-5 h-5 text-cyan-400" />
           <h2 className="text-sm font-bold text-white uppercase tracking-wider">
             {isVi ? 'Nhật Ký Hoạt Động Hệ Thống (Live System Log)' : 'Live System Activity Log'}
           </h2>
           <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-300 font-mono">
-            {logs.length} events
+            {localLogs.length} events
           </span>
         </div>
 
@@ -97,7 +107,7 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
             </select>
           </div>
 
-          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer ml-2">
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer mx-1">
             <input
               type="checkbox"
               checked={autoScroll}
@@ -107,20 +117,66 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
             <span>Auto-scroll</span>
           </label>
 
+          {/* 4 Nút Tác Vụ Chuẩn: Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
           <button
-            onClick={handleExportLogs}
-            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-medium flex items-center gap-1 transition-colors"
+            onClick={() => {
+              const now = new Date().toLocaleTimeString('vi-VN', { hour12: false });
+              const newEntry: AppLog = {
+                id: `log-manual-${Date.now()}`,
+                timestamp: now,
+                level: 'info',
+                message: 'Ghi chú nhật ký bổ sung của giáo viên / quản trị viên.',
+              };
+              setLocalLogs((prev) => [...prev, newEntry]);
+            }}
+            className="btn-3d btn-3d-emerald px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1"
           >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isVi ? 'Xuất log' : 'Export'}</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>{isVi ? 'Thêm' : 'Add'}</span>
           </button>
 
           <button
-            onClick={onClearLogs}
-            className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-rose-900/40 text-zinc-300 hover:text-rose-300 text-xs font-medium flex items-center gap-1 transition-colors"
+            onClick={() => setIsEditingLogs(!isEditingLogs)}
+            className={`btn-3d px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1 ${
+              isEditingLogs ? 'btn-3d-emerald' : 'btn-3d-amber'
+            }`}
+          >
+            <Edit3 className="w-3.5 h-3.5" />
+            <span>{isEditingLogs ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (localLogs.length > 0) {
+                setSavedLogsBackup(localLogs);
+              }
+              setLocalLogs([]);
+              onClearLogs();
+            }}
+            className="btn-3d btn-3d-rose px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>{isVi ? 'Xóa' : 'Clear'}</span>
+            <span>{isVi ? 'Xóa' : 'Delete'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (savedLogsBackup.length > 0) {
+                setLocalLogs(savedLogsBackup);
+              }
+            }}
+            className="btn-3d btn-3d-cyan px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+          </button>
+
+          <button
+            onClick={handleExportLogs}
+            className="btn-3d btn-3d-indigo px-3 py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>{isVi ? 'Xuất Log' : 'Export'}</span>
           </button>
         </div>
       </div>
@@ -129,16 +185,36 @@ export const SystemLogTab: React.FC<SystemLogTabProps> = ({
       <div className="p-4 rounded-2xl bg-zinc-950 border border-zinc-800 font-mono text-xs overflow-y-auto max-h-[500px] min-h-[350px] shadow-2xl space-y-1.5">
         {filteredLogs.length > 0 ? (
           filteredLogs.map((log) => (
-            <div key={log.id} className="flex items-start gap-2 hover:bg-zinc-900/50 p-1 rounded transition-colors">
-              <span className="text-zinc-600 select-none text-[11px] whitespace-nowrap">
+            <div
+              key={log.id}
+              className="flex items-center gap-2 hover:bg-zinc-900/50 p-1.5 rounded transition-colors"
+            >
+              <span className="text-zinc-500 select-none text-[11px] whitespace-nowrap">
                 [{log.timestamp}]
               </span>
-              <span className={`text-[10px] uppercase font-bold px-1.5 py-0.2 rounded border whitespace-nowrap ${getLevelBadge(log.level)}`}>
+              <span
+                className={`text-[10px] uppercase font-bold px-1.5 py-0.5 rounded border whitespace-nowrap ${getLevelBadge(
+                  log.level
+                )}`}
+              >
                 {log.level}
               </span>
-              <span className="text-zinc-200 flex-1 leading-relaxed">
-                {log.message}
-              </span>
+              {isEditingLogs ? (
+                <input
+                  type="text"
+                  value={log.message}
+                  onChange={(e) =>
+                    setLocalLogs((prev) =>
+                      prev.map((item) =>
+                        item.id === log.id ? { ...item, message: e.target.value } : item
+                      )
+                    )
+                  }
+                  className="flex-1 px-2 py-0.5 rounded bg-zinc-900 border border-cyan-500/60 text-xs text-white"
+                />
+              ) : (
+                <span className="text-zinc-200 flex-1 leading-relaxed">{log.message}</span>
+              )}
             </div>
           ))
         ) : (

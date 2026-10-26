@@ -9,6 +9,7 @@ import {
   Check,
   Upload,
   FileText,
+  RotateCcw,
 } from 'lucide-react';
 import { LessonPlan5512, CompetencyType } from '../types/pedagogyTypes';
 import {
@@ -36,8 +37,10 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
   onLog,
 }) => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [savedPlanSnapshot, setSavedPlanSnapshot] = useState<LessonPlan5512>(lessonPlan);
 
   const updatePlan = (next: LessonPlan5512) => {
+    setSavedPlanSnapshot(lessonPlan);
     onUpdateLessonPlan?.(next);
   };
 
@@ -217,7 +220,56 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
             className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Thêm Hoạt Động</span>
+            <span>Thêm</span>
+          </button>
+
+          {/* Chỉnh sửa */}
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+              isEditing ? 'btn-3d-emerald' : 'btn-3d-amber'
+            }`}
+          >
+            {isEditing ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
+            <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          {/* Xóa */}
+          <button
+            onClick={() => {
+              if (lessonPlan.activities.length > 1) {
+                const lastAct = lessonPlan.activities[lessonPlan.activities.length - 1];
+                handleDeleteActivity(lastAct.id);
+              } else {
+                setSavedPlanSnapshot(lessonPlan);
+                onUpdateLessonPlan?.({
+                  ...lessonPlan,
+                  knowledgeObjectives: ['Nhấn Khôi Phục Lại hoặc Chỉnh Sửa để nhập nội dung mới.'],
+                });
+                onLog('Đã xóa bớt nội dung Giáo án (Bấm Khôi Phục Lại để hoàn tác).', 'warning');
+              }
+            }}
+            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Xóa</span>
+          </button>
+
+          {/* Khôi phục lại */}
+          <button
+            onClick={() => {
+              if (savedPlanSnapshot) {
+                onUpdateLessonPlan?.(savedPlanSnapshot);
+                onLog('Đã khôi phục lại Giáo án 5512 về trạng thái trước đó.', 'info');
+              } else {
+                onRegenerate();
+              }
+            }}
+            disabled={isGenerating}
+            className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Khôi Phục Lại</span>
           </button>
 
           {/* Tải lên */}
@@ -231,27 +283,6 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
               className="hidden"
             />
           </label>
-
-          {/* Chỉnh sửa */}
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
-              isEditing ? 'btn-3d-emerald' : 'btn-3d-amber'
-            }`}
-          >
-            {isEditing ? <Check className="w-4 h-4" /> : <Edit3 className="w-4 h-4" />}
-            <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
-          </button>
-
-          {/* Tạo lại */}
-          <button
-            onClick={onRegenerate}
-            disabled={isGenerating}
-            className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
-          >
-            <Sparkles className="w-4 h-4 text-yellow-300" />
-            <span>{isGenerating ? 'Đang tạo...' : 'Tạo Lại'}</span>
-          </button>
 
           {/* Gõ tự động */}
           <button

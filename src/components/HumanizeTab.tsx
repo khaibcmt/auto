@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Sparkles, 
   Zap, 
@@ -12,7 +12,10 @@ import {
   Sliders, 
   HelpCircle,
   TrendingUp,
-  Split
+  Split,
+  Plus,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 import { 
@@ -44,11 +47,15 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
 }) => {
   const isVi = language === 'vi';
   const [inputText, setInputText] = useState(SAMPLE_INPUT_TEXT);
+  const [savedInputSnapshot, setSavedInputSnapshot] = useState(SAMPLE_INPUT_TEXT);
   const [outputText, setOutputText] = useState('');
+  const [savedOutputSnapshot, setSavedOutputSnapshot] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showPromptDetails, setShowPromptDetails] = useState(false);
   const [lastEngineNote, setLastEngineNote] = useState<string | null>(null);
+  const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const outputTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Analysis of input and output
   const inputAnalysis = useMemo(() => analyzeProse(inputText), [inputText]);
@@ -368,7 +375,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Pane: Original Input */}
         <div className="flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
-          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
+          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-zinc-400" />
               <span className="text-sm font-semibold text-zinc-200">
@@ -381,35 +388,59 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
                 <span>{isVi ? 'Tải Lên' : 'Upload'}</span>
               </label>
               <button
-                onClick={() => setInputText((prev) => (prev ? `${prev}\n\nNội dung bổ sung mới...` : 'Nội dung mới...'))}
-                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg font-bold"
+                onClick={() => {
+                  setSavedInputSnapshot(inputText || SAMPLE_INPUT_TEXT);
+                  setInputText((prev) => (prev ? `${prev}\n\nNội dung bổ sung mới...` : 'Nội dung mới...'));
+                  onLog('Đã thêm đoạn nội dung mới vào Văn Bản Gốc.', 'info');
+                }}
+                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
               >
-                {isVi ? 'Thêm' : 'Add'}
+                <Plus className="w-3 h-3" />
+                <span>{isVi ? 'Thêm' : 'Add'}</span>
               </button>
               <button
-                onClick={handleLoadSample}
+                onClick={() => {
+                  inputTextareaRef.current?.focus();
+                  onLog('Đang chỉnh sửa Văn Bản Gốc trực tiếp.', 'info');
+                }}
+                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>{isVi ? 'Chỉnh Sửa' : 'Edit'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (inputText.trim()) setSavedInputSnapshot(inputText);
+                  setInputText('');
+                  onLog('Đã xóa Văn Bản Gốc (Bấm Khôi Phục Lại để lấy lại).', 'warning');
+                }}
+                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{isVi ? 'Xóa' : 'Delete'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setInputText(savedInputSnapshot || SAMPLE_INPUT_TEXT);
+                  onLog('Đã khôi phục lại Văn Bản Gốc.', 'info');
+                }}
                 className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>{isVi ? 'Mẫu' : 'Sample'}</span>
+                <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
               </button>
               <button
                 onClick={() => handleDownloadDoc(inputText, 'Van_Ban_Goc_12pt.doc')}
-                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg font-bold"
+                className="btn-3d btn-3d-indigo text-xs px-2.5 py-1 rounded-lg font-bold"
               >
                 {isVi ? 'Tải Về (.DOC)' : 'Download'}
-              </button>
-              <button
-                onClick={() => setInputText('')}
-                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
-              >
-                {isVi ? 'Xóa' : 'Clear'}
               </button>
             </div>
           </div>
 
           <div className="relative flex-1 p-4 bg-zinc-950/50 doc-times-12pt">
             <textarea
+              ref={inputTextareaRef}
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder={isVi ? 'Dán hoặc tải lên văn bản bạn muốn chỉnh sửa & humanize tại đây...' : 'Paste text to humanize here...'}
@@ -444,7 +475,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
 
         {/* Right Pane: Humanized Result */}
         <div className="flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
-          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
+          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
               <span className="text-sm font-semibold text-zinc-200">
@@ -458,6 +489,54 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => {
+                  if (outputText.trim()) setSavedOutputSnapshot(outputText);
+                  setOutputText((prev) =>
+                    prev ? `${prev}\n\nNội dung bổ sung đã chuẩn hóa...` : ruleBasedHumanize(inputText || SAMPLE_INPUT_TEXT, settings.strength)
+                  );
+                  onLog('Đã thêm nội dung vào khung Kết Quả Humanized.', 'info');
+                }}
+                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Plus className="w-3 h-3" />
+                <span>{isVi ? 'Thêm' : 'Add'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (!outputText) {
+                    setOutputText(ruleBasedHumanize(inputText || SAMPLE_INPUT_TEXT, settings.strength));
+                  }
+                  setTimeout(() => outputTextareaRef.current?.focus(), 50);
+                  onLog('Đang chỉnh sửa Kết Quả Humanized trực tiếp.', 'info');
+                }}
+                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>{isVi ? 'Chỉnh Sửa' : 'Edit'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (outputText.trim()) setSavedOutputSnapshot(outputText);
+                  setOutputText('');
+                  onLog('Đã xóa Kết Quả Humanized.', 'warning');
+                }}
+                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{isVi ? 'Xóa' : 'Delete'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  const fallback = savedOutputSnapshot || ruleBasedHumanize(inputText || SAMPLE_INPUT_TEXT, settings.strength);
+                  setOutputText(fallback);
+                  onLog('Đã khôi phục lại Kết Quả Humanized.', 'info');
+                }}
+                className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+              </button>
               {outputText && (
                 <>
                   <button
@@ -472,12 +551,6 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
                   >
                     {copied ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
                     <span>{copied ? (isVi ? 'Đã chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
-                  </button>
-                  <button
-                    onClick={() => setOutputText('')}
-                    className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
-                  >
-                    {isVi ? 'Xóa' : 'Clear'}
                   </button>
                   <button
                     onClick={() => onSendToTyper(outputText)}
@@ -509,6 +582,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             ) : outputText ? (
               <div className="h-full flex flex-col">
                 <textarea
+                  ref={outputTextareaRef}
                   value={outputText}
                   onChange={(e) => setOutputText(e.target.value)}
                   rows={13}

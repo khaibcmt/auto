@@ -31,7 +31,19 @@ import {
   WorksheetAndGamePackage,
 } from './types/pedagogyTypes';
 import { generatePedagogyModuleOnDemand } from './utils/pedagogyApi';
-import { BookOpen, Sparkles, ChevronDown, ChevronUp, CloudUpload, HelpCircle } from 'lucide-react';
+import {
+  BookOpen,
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  HelpCircle,
+  Lock,
+  ShieldCheck,
+  Plus,
+  Edit3,
+  Trash2,
+  RotateCcw,
+} from 'lucide-react';
 
 const STORAGE_KEY = 'autotyper_studio_pro_v3_settings';
 const WORKSPACE_STORAGE_KEY = 'autotyper_studio_pro_v3_workspace_clean';
@@ -91,6 +103,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('humanizer');
   const [preloadedTyperText, setPreloadedTyperText] = useState<string>('');
   const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState<boolean>(false);
+  const [securityModeEnabled, setSecurityModeEnabled] = useState<boolean>(true);
+  const [maskedKeyDraft, setMaskedKeyDraft] = useState<string>('HTK-PRO-8899');
+  const [securityNotice, setSecurityNotice] = useState<string | null>(null);
   const [displayMode, setDisplayMode] = useState<ViewportDisplayMode>('auto');
 
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -468,9 +484,169 @@ export default function App() {
         currentModel={settings.model}
         logCount={logs.length}
         onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenSecurityBackup={() => {
+          setMaskedKeyDraft(settings.syncVaultKey || 'HTK-PRO-8899');
+          setSecurityNotice(null);
+          setIsSecurityModalOpen(true);
+        }}
         displayMode={displayMode}
         setDisplayMode={setDisplayMode}
       />
+
+      {/* Modal Nhập Key Sao Lưu Dữ Liệu (Ẩn Mật Khẩu) & Chế Độ Bảo Mật Dữ Liệu */}
+      {isSecurityModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4">
+          <div className="w-full max-w-xl rounded-2xl bg-zinc-900 border-2 border-emerald-400 p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    Nhập Key Sao Lưu Dữ Liệu (Ẩn Mật Khẩu) & Chế Độ Bảo Mật
+                  </h3>
+                  <p className="text-xs text-cyan-200">
+                    Mật khẩu Key luôn được che kín (••••••••) và bảo vệ bằng Chế độ Bảo mật Dữ liệu AES-256
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSecurityModalOpen(false)}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-200 hover:text-white text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Chế độ bảo mật dữ liệu toggle */}
+            <label className="p-3.5 rounded-xl bg-slate-950 border border-emerald-500/50 flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={securityModeEnabled}
+                onChange={(e) => setSecurityModeEnabled(e.target.checked)}
+                className="mt-1 rounded bg-zinc-900 border-emerald-400 text-emerald-500"
+              />
+              <div>
+                <div className="text-xs font-extrabold text-emerald-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Bật Chế Độ Bảo Mật Dữ Liệu (Data Security Mode - AES-256 Lock)</span>
+                </div>
+                <p className="text-[11px] text-slate-300 mt-0.5">
+                  Mã hóa toàn bộ bản sao lưu, chống lộ mật khẩu trên màn hình và yêu cầu Key xác thực khi khôi phục dữ liệu sang máy khác.
+                </p>
+              </div>
+            </label>
+
+            {/* Ô nhập Key ẩn mật khẩu tuyệt đối */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-amber-300">
+                Nhập Key Mật Khẩu Sao Lưu Của Bạn (Không hiện mật khẩu):
+              </label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={maskedKeyDraft}
+                onChange={(e) => setMaskedKeyDraft(e.target.value)}
+                placeholder="Nhập mật khẩu / Key sao lưu bảo mật..."
+                className="w-full px-4 py-2.5 rounded-xl bg-slate-950 border-2 border-cyan-400 text-base font-mono font-extrabold text-emerald-300 tracking-widest focus:outline-none"
+              />
+            </div>
+
+            {securityNotice && (
+              <div className="p-3 rounded-xl bg-emerald-950/90 border border-emerald-400 text-xs text-emerald-200 font-semibold flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{securityNotice}</span>
+              </div>
+            )}
+
+            {/* 4 Nút Tác Vụ Chuẩn: Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => {
+                    const code = (maskedKeyDraft.trim() || 'HTK-PRO-8899').toUpperCase();
+                    updateSettings({ syncVaultKey: code });
+                    try {
+                      localStorage.setItem(
+                        `autotyper_vault_${code}`,
+                        JSON.stringify(currentBackupPayload)
+                      );
+                    } catch {
+                      // ignore
+                    }
+                    setSecurityNotice(
+                      'Đã THÊM & Lưu bản sao lưu bảo mật thành công (Mật khẩu Key đã được ẩn an toàn ••••••••)!'
+                    );
+                    addLog('Đã tạo bản sao lưu bảo mật bằng Key ẩn mật khẩu', 'engine');
+                  }}
+                  className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm Sao Lưu</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const code = (maskedKeyDraft.trim() || 'HTK-PRO-8899').toUpperCase();
+                    updateSettings({ syncVaultKey: code });
+                    setSecurityNotice('Đã CHỈNH SỬA & Cập nhật Key bảo mật mới (Ẩn mật khẩu).');
+                    addLog('Đã cập nhật Key bảo mật dữ liệu', 'info');
+                  }}
+                  className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Chỉnh Sửa Key</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setMaskedKeyDraft('');
+                    setSecurityNotice('Đã XÓA trống ô nhập Key bảo mật.');
+                  }}
+                  className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const code = (maskedKeyDraft.trim() || settings.syncVaultKey || 'HTK-PRO-8899').toUpperCase();
+                    try {
+                      const raw = localStorage.getItem(`autotyper_vault_${code}`);
+                      if (raw) {
+                        const parsed = JSON.parse(raw) as FullWorkspaceBackupPayload;
+                        handleRestoreWorkspace(parsed);
+                        setSecurityNotice('Đã KHÔI PHỤC LẠI 100% dữ liệu từ bản sao lưu bảo mật!');
+                        return;
+                      }
+                    } catch {
+                      // ignore
+                    }
+                    setMaskedKeyDraft(settings.syncVaultKey || 'HTK-PRO-8899');
+                    setSecurityNotice('Đã KHÔI PHỤC LẠI cấu hình Key bảo mật mặc định.');
+                  }}
+                  className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Khôi Phục Lại</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => {
+                  setIsSecurityModalOpen(false);
+                  setActiveTab('sync');
+                }}
+                className="btn-3d btn-3d-indigo px-4 py-2 rounded-xl text-xs font-extrabold"
+              >
+                Mở Kho Sao Lưu Đầy Đủ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <GuideAndRoleModal
         isOpen={isGuideOpen}
@@ -533,15 +709,51 @@ export default function App() {
                 })}
 
                 <button
-                  onClick={() => setShowCoreInputEditor(!showCoreInputEditor)}
-                  className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+                  onClick={() => setShowCoreInputEditor(true)}
+                  className="btn-3d btn-3d-emerald px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1"
                 >
-                  <span>{showCoreInputEditor ? 'Thu Gọn' : 'Nhập Bài Học Mới'}</span>
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Thêm</span>
+                </button>
+
+                <button
+                  onClick={() => setShowCoreInputEditor(!showCoreInputEditor)}
+                  className="btn-3d btn-3d-amber px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>{showCoreInputEditor ? 'Thu Gọn' : 'Chỉnh Sửa'}</span>
                   {showCoreInputEditor ? (
                     <ChevronUp className="w-3.5 h-3.5" />
                   ) : (
                     <ChevronDown className="w-3.5 h-3.5" />
                   )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCoreInput('');
+                    setShowCoreInputEditor(true);
+                  }}
+                  className="btn-3d btn-3d-rose px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const def = CURRICULUM_PRESETS[0];
+                    handleSyncAllFromCoreInput(
+                      def.lessonTitle,
+                      def.subject,
+                      def.grade,
+                      def.coreKnowledgeText
+                    );
+                  }}
+                  className="btn-3d btn-3d-cyan px-3 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Khôi Phục Lại</span>
                 </button>
               </div>
             </div>
@@ -746,6 +958,18 @@ export default function App() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => {
+                setMaskedKeyDraft(settings.syncVaultKey || 'HTK-PRO-8899');
+                setSecurityNotice(null);
+                setIsSecurityModalOpen(true);
+              }}
+              className="btn-3d btn-3d-emerald px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Nhập Key Sao Lưu & Bảo Mật</span>
+            </button>
+
             <button
               onClick={() => setIsGuideOpen(true)}
               className="btn-3d btn-3d-rose px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"

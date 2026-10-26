@@ -14,6 +14,7 @@ import {
   Edit3,
   Trash2,
   FileCode2,
+  RotateCcw,
 } from 'lucide-react';
 import {
   DifferentiatedExamPackage,
@@ -48,6 +49,7 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
   const [underlineKeyMode, setUnderlineKeyMode] = useState<boolean>(true);
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [savedExamSnapshot, setSavedExamSnapshot] = useState<DifferentiatedExamPackage>(examPackage);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const getCompetencyColorClass = (text: string) => {
@@ -243,11 +245,56 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
             />
 
             <button
-              onClick={handleAddQuestion}
+              onClick={() => {
+                setSavedExamSnapshot(examPackage);
+                handleAddQuestion();
+              }}
               className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
             >
               <Plus className="w-4 h-4" />
-              <span>Thêm Câu Hỏi</span>
+              <span>Thêm</span>
+            </button>
+
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+                isEditing ? 'btn-3d-emerald' : 'btn-3d-amber'
+              }`}
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSavedExamSnapshot(examPackage);
+                if (examPackage.part1.length > 1) {
+                  handleDeletePart1Question(examPackage.part1.length - 1);
+                } else {
+                  handleClearOrResetExam();
+                }
+              }}
+              disabled={isGenerating}
+              className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Xóa</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (savedExamSnapshot) {
+                  onUpdateExam(savedExamSnapshot);
+                  onLog('Đã khôi phục lại bộ Đề thi về trạng thái trước đó.', 'info');
+                } else {
+                  onRegenerate();
+                }
+              }}
+              disabled={isGenerating}
+              className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Khôi Phục Lại</span>
             </button>
 
             <button
@@ -259,28 +306,9 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
             </button>
 
             <button
-              onClick={() => setIsEditing(!isEditing)}
-              className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
-                isEditing ? 'btn-3d-amber' : 'btn-3d-indigo'
-              }`}
-            >
-              <Edit3 className="w-4 h-4" />
-              <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
-            </button>
-
-            <button
-              onClick={handleClearOrResetExam}
-              disabled={isGenerating}
-              className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Xóa / Tạo Lại</span>
-            </button>
-
-            <button
               onClick={onRegenerate}
               disabled={isGenerating}
-              className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+              className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
             >
               <Sparkles className="w-4 h-4" />
               <span>{isGenerating ? 'Đang sinh đề...' : 'Sinh Đề Mới'}</span>

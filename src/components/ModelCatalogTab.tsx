@@ -10,9 +10,13 @@ import {
   Zap,
   CheckCircle2,
   Play,
+  Plus,
+  Edit3,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
-import { CURATED_MODELS, PROVIDERS_META } from '../data/modelCatalog';
+import { CURATED_MODELS, PROVIDERS_META, ModelItem } from '../data/modelCatalog';
 
 interface ModelCatalogTabProps {
   settings: UserSettings;
@@ -30,9 +34,11 @@ export const ModelCatalogTab: React.FC<ModelCatalogTabProps> = ({
   onLog,
 }) => {
   const isVi = language === 'vi';
+  const [modelsList, setModelsList] = useState<ModelItem[]>(CURATED_MODELS);
   const [selectedProviderFilter, setSelectedProviderFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showOllamaModal, setShowOllamaModal] = useState<boolean>(false);
+  const [isEditingModels, setIsEditingModels] = useState<boolean>(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
   const [syncingAll, setSyncingAll] = useState<boolean>(false);
   const [testingModelId, setTestingModelId] = useState<string | null>(null);
@@ -40,7 +46,7 @@ export const ModelCatalogTab: React.FC<ModelCatalogTabProps> = ({
     Record<string, { ok: boolean; latencyMs: number; message: string }>
   >({});
 
-  const filteredModels = CURATED_MODELS.filter((m) => {
+  const filteredModels = modelsList.filter((m) => {
     const matchesProvider =
       selectedProviderFilter === 'all' || m.provider === selectedProviderFilter;
     const matchesQuery =
@@ -194,26 +200,82 @@ export const ModelCatalogTab: React.FC<ModelCatalogTabProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                const newModel: ModelItem = {
+                  id: `custom-ai-pro-${modelsList.length + 1}`,
+                  name: `Custom AI Model #${modelsList.length + 1}`,
+                  provider: selectedProviderFilter === 'all' ? 'google' : selectedProviderFilter,
+                  description: 'Mô hình AI bổ sung tùy chỉnh chạy qua Universal Cloud Bridge (100% Online).',
+                  contextWindow: '2M tokens',
+                  isPopular: true,
+                };
+                setModelsList((prev) => [newModel, ...prev]);
+                setIsEditingModels(true);
+                onLog(`Đã thêm mô hình mới: ${newModel.name}`, 'info');
+              }}
+              className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>{isVi ? 'Thêm' : 'Add'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsEditingModels(!isEditingModels)}
+              className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+                isEditingModels ? 'btn-3d-emerald' : 'btn-3d-amber'
+              }`}
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>{isEditingModels ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (modelsList.length > 1) {
+                  setModelsList((prev) => prev.slice(1));
+                  onLog('Đã xóa mô hình đầu danh sách (Bấm Khôi Phục Lại để lấy lại).', 'warning');
+                }
+              }}
+              className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>{isVi ? 'Xóa' : 'Delete'}</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setModelsList(CURATED_MODELS);
+                setSelectedProviderFilter('all');
+                setSearchQuery('');
+                onLog('Đã khôi phục lại toàn bộ danh mục 37 mô hình AI gốc.', 'info');
+              }}
+              className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+            </button>
+
             <button
               onClick={handleAutoSyncAllProviders}
               disabled={syncingAll}
-              className="btn-3d btn-3d-emerald px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2"
+              className="btn-3d btn-3d-indigo px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2"
             >
               <RefreshCw className={`w-4 h-4 ${syncingAll ? 'animate-spin' : ''}`} />
               <span>
                 {syncingAll
-                  ? 'Đang Đồng Bộ 37 Model...'
-                  : 'Tự Động Đồng Bộ Tất Cả Kết Nối AI (100%)'}
+                  ? 'Đang Đồng Bộ...'
+                  : 'Đồng Bộ 100% AI'}
               </span>
             </button>
 
             <button
               onClick={() => setShowOllamaModal(true)}
-              className="btn-3d btn-3d-purple px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2"
+              className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
             >
               <Server className="w-4 h-4" />
-              <span>{isVi ? 'Cấu Hình Máy Chủ Ollama' : 'Ollama Host Setup'}</span>
+              <span>{isVi ? 'Cấu Hình Ollama' : 'Ollama Setup'}</span>
             </button>
           </div>
         </div>
@@ -320,23 +382,71 @@ export const ModelCatalogTab: React.FC<ModelCatalogTabProps> = ({
                   <span className="font-mono font-bold text-cyan-300">
                     {providerMeta?.name || model.provider}
                   </span>
-                  <span className="font-mono text-emerald-400 font-bold flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5" />
-                    <span>100% READY</span>
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-emerald-400 font-bold flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>100% READY</span>
+                    </span>
+                    <button
+                      onClick={() =>
+                        setModelsList((prev) =>
+                          prev.filter((item) => !(item.id === model.id && item.provider === model.provider))
+                        )
+                      }
+                      className="text-slate-400 hover:text-rose-400 p-0.5"
+                      title="Xóa model này"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
-                <h3 className="text-base font-extrabold text-white mb-1 flex items-center gap-1.5">
-                  <span>{model.name}</span>
-                  {model.isPopular && <Sparkles className="w-4 h-4 text-yellow-300 shrink-0" />}
-                </h3>
-                <p className="text-xs font-mono text-amber-300 mb-2 truncate" title={model.id}>
-                  ID: {model.id} {model.contextWindow ? `· ${model.contextWindow}` : ''}
-                </p>
+                {isEditingModels ? (
+                  <div className="space-y-1.5 mb-2">
+                    <input
+                      type="text"
+                      value={model.name}
+                      onChange={(e) =>
+                        setModelsList((prev) =>
+                          prev.map((item) =>
+                            item.id === model.id && item.provider === model.provider
+                              ? { ...item, name: e.target.value }
+                              : item
+                          )
+                        )
+                      }
+                      className="w-full px-2.5 py-1 rounded bg-slate-950 border border-cyan-400 text-xs font-bold text-white"
+                    />
+                    <input
+                      type="text"
+                      value={model.description || ''}
+                      onChange={(e) =>
+                        setModelsList((prev) =>
+                          prev.map((item) =>
+                            item.id === model.id && item.provider === model.provider
+                              ? { ...item, description: e.target.value }
+                              : item
+                          )
+                        )
+                      }
+                      className="w-full px-2.5 py-1 rounded bg-slate-950 border border-slate-700 text-xs text-slate-200"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="text-base font-extrabold text-white mb-1 flex items-center gap-1.5">
+                      <span>{model.name}</span>
+                      {model.isPopular && <Sparkles className="w-4 h-4 text-yellow-300 shrink-0" />}
+                    </h3>
+                    <p className="text-xs font-mono text-amber-300 mb-2 truncate" title={model.id}>
+                      ID: {model.id} {model.contextWindow ? `· ${model.contextWindow}` : ''}
+                    </p>
 
-                <p className="text-xs text-slate-200 leading-relaxed mb-3">
-                  {model.description || providerMeta?.tagline}
-                </p>
+                    <p className="text-xs text-slate-200 leading-relaxed mb-3">
+                      {model.description || providerMeta?.tagline}
+                    </p>
+                  </>
+                )}
 
                 {testResult && (
                   <div className="mb-3 p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-400/60 text-[11px] font-mono text-emerald-200">

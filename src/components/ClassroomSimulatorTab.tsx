@@ -753,6 +753,11 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
       ? initialLessonText
       : DEFAULT_SIMULATOR_LESSON_TEXT
   );
+  const [savedLessonSnapshot, setSavedLessonSnapshot] = useState<string>(
+    initialLessonText && initialLessonText.trim().length > 20
+      ? initialLessonText
+      : DEFAULT_SIMULATOR_LESSON_TEXT
+  );
   const [students, setStudents] = useState<VirtualStudentAgent[]>(INITIAL_VIRTUAL_STUDENTS);
   const [selectedCohortFilter, setSelectedCohortFilter] = useState<StudentCohort | 'ALL'>('ALL');
   const [isSimulating, setIsSimulating] = useState(false);
@@ -766,6 +771,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
   const [newStudentName, setNewStudentName] = useState<string>('');
   const [newStudentCohort, setNewStudentCohort] = useState<StudentCohort>('B');
   const [newStudentTrait, setNewStudentTrait] = useState<string>('');
+  const lessonTextareaRef = React.useRef<HTMLTextAreaElement | null>(null);
 
   // Sync if initialLessonText updates externally
   useEffect(() => {
@@ -1191,7 +1197,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                 </h3>
               </div>
 
-              {/* Full CRUD Toolbar */}
+              {/* Full CRUD Toolbar: Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <label className="btn-3d btn-3d-purple px-3 py-1.5 rounded-xl text-xs font-extrabold cursor-pointer flex items-center gap-1">
                   <Upload className="w-3.5 h-3.5" />
@@ -1203,6 +1209,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                       const f = e.target.files?.[0];
                       if (!f) return;
                       const txt = await f.text();
+                      setSavedLessonSnapshot(txt);
                       setLessonText(txt);
                       setResolvedSentences([]);
                       onLog(`Đã tải bài giảng "${f.name}" vào Phòng Thí Nghiệm Lớp Học Ảo.`, 'info');
@@ -1213,11 +1220,13 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                 </label>
 
                 <button
-                  onClick={() =>
+                  onClick={() => {
+                    if (lessonText.trim()) setSavedLessonSnapshot(lessonText);
                     setLessonText((prev) =>
                       `${prev.trim()}\n- Năng lực số: Học sinh thực hành trực tiếp trên bảng mô phỏng số để kiểm chứng kết quả.`
-                    )
-                  }
+                    );
+                    onLog('Đã thêm đoạn bài giảng mới vào Phòng Lab Lớp Học Ảo.', 'info');
+                  }}
                   className="btn-3d btn-3d-emerald px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -1225,31 +1234,47 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                 </button>
 
                 <button
-                  onClick={handleDownloadReportWord}
+                  onClick={() => {
+                    lessonTextareaRef.current?.focus();
+                    onLog('Đang chỉnh sửa kịch bản bài giảng trong Phòng Lab Lớp Học Ảo.', 'info');
+                  }}
                   className="btn-3d btn-3d-amber px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Tải Về Word (.DOC 12pt)</span>
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Chỉnh Sửa</span>
                 </button>
 
                 <button
                   onClick={() => {
-                    setLessonText(DEFAULT_SIMULATOR_LESSON_TEXT);
-                    setResolvedSentences([]);
-                    setEvolvedPreview('');
+                    if (lessonText.trim()) setSavedLessonSnapshot(lessonText);
+                    setLessonText('');
+                    onLog('Đã xóa kịch bản bài giảng (Bấm Khôi Phục Lại để lấy lại).', 'warning');
                   }}
-                  className="btn-3d btn-3d-cyan px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
-                >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Mẫu Chuẩn</span>
-                </button>
-
-                <button
-                  onClick={() => setLessonText('')}
                   className="btn-3d btn-3d-rose px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Xóa</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setLessonText(savedLessonSnapshot || DEFAULT_SIMULATOR_LESSON_TEXT);
+                    setResolvedSentences([]);
+                    setEvolvedPreview('');
+                    onLog('Đã khôi phục lại kịch bản bài giảng trong Phòng Lab Lớp Học Ảo.', 'info');
+                  }}
+                  className="btn-3d btn-3d-cyan px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Khôi Phục Lại</span>
+                </button>
+
+                <button
+                  onClick={handleDownloadReportWord}
+                  className="btn-3d btn-3d-indigo px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải Về Word (.DOC 12pt)</span>
                 </button>
               </div>
             </div>
@@ -1316,6 +1341,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                 <span>Chỉnh sửa trực tiếp văn bản bài giảng / giáo án (Chuẩn Times New Roman 12pt):</span>
               </label>
               <textarea
+                ref={lessonTextareaRef}
                 value={lessonText}
                 onChange={(e) => setLessonText(e.target.value)}
                 rows={6}
@@ -1483,12 +1509,23 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
                 {filter === 'ALL' ? `Tất cả (${students.length})` : `Nhóm ${filter}`}
               </button>
             ))}
+            <button
+              onClick={() => {
+                setStudents(INITIAL_VIRTUAL_STUDENTS);
+                onLog('Đã khôi phục lại danh sách 36 Học sinh AI mặc định.', 'info');
+              }}
+              className="btn-3d btn-3d-emerald px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Khôi Phục Lại (36 HS)</span>
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[420px] overflow-y-auto pr-1">
           {filteredStudents.map((st) => {
             const meta = COHORT_META[st.cohort];
+            const isEditingSt = editingStudentId === st.id;
             return (
               <div
                 key={st.id}
@@ -1496,13 +1533,33 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
               >
                 <div>
                   <div className="flex items-center justify-between gap-1">
-                    <span className="text-xs font-extrabold text-white truncate">{st.name}</span>
+                    {isEditingSt ? (
+                      <input
+                        type="text"
+                        value={st.name}
+                        onChange={(e) =>
+                          setStudents((prev) =>
+                            prev.map((item) => (item.id === st.id ? { ...item, name: e.target.value } : item))
+                          )
+                        }
+                        className="px-2 py-0.5 rounded bg-slate-900 border border-cyan-400 text-xs text-white font-bold w-28"
+                      />
+                    ) : (
+                      <span className="text-xs font-extrabold text-white truncate">{st.name}</span>
+                    )}
                     <div className="flex items-center gap-1">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-black ${meta.bgClass} ${meta.colorClass}`}
                       >
                         Nhóm {st.cohort}
                       </span>
+                      <button
+                        onClick={() => setEditingStudentId(isEditingSt ? null : st.id)}
+                        className="text-slate-400 hover:text-amber-300 p-0.5"
+                        title="Chỉnh sửa học sinh"
+                      >
+                        <Edit3 className="w-3 h-3" />
+                      </button>
                       <button
                         onClick={() => handleDeleteStudent(st.id)}
                         className="text-slate-400 hover:text-rose-400 p-0.5"

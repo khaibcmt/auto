@@ -8,7 +8,11 @@ import {
   FileCode, 
   KeyRound,
   CheckCircle2,
-  Globe
+  Globe,
+  Plus,
+  Edit3,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 
@@ -26,6 +30,7 @@ export const DesktopCompanionTab: React.FC<DesktopCompanionTabProps> = ({
   const isVi = language === 'vi';
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [activeCodeFile, setActiveCodeFile] = useState<string>('.github/workflows/deploy.yml');
+  const [isEditingSnippet, setIsEditingSnippet] = useState<boolean>(false);
 
   const copyCommand = (cmd: string, id: string) => {
     navigator.clipboard.writeText(cmd);
@@ -189,10 +194,12 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
     # Auto-restart Ollama in CPU mode if inference fails`
   };
 
+  const [customSnippets, setCustomSnippets] = useState<Record<string, string>>(codeSnippets);
+
   return (
     <div className="space-y-6">
-      {/* Hero Banner */}
-      <div className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Hero Banner with Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
+      <div className="p-6 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-xl flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
             <Laptop className="w-6 h-6" />
@@ -209,13 +216,69 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
           </div>
         </div>
 
-        <button
-          onClick={handleDownloadSettingsJson}
-          className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-bold shadow transition-all flex items-center gap-2"
-        >
-          <Download className="w-4 h-4" />
-          <span>{isVi ? 'Xuất settings.json Của Bạn' : 'Export settings.json'}</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => {
+              const newFile = `custom_script_${Object.keys(customSnippets).length + 1}.py`;
+              setCustomSnippets((prev) => ({
+                ...prev,
+                [newFile]: `# Tệp cấu hình bổ sung: ${newFile}\nprint("AutoTyper Studio Pro v3.0 Ready")`,
+              }));
+              setActiveCodeFile(newFile);
+              setIsEditingSnippet(true);
+              onLog(`Đã thêm tệp kịch bản mới: ${newFile}`, 'info');
+            }}
+            className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{isVi ? 'Thêm' : 'Add'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsEditingSnippet(!isEditingSnippet)}
+            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+              isEditingSnippet ? 'btn-3d-emerald' : 'btn-3d-amber'
+            }`}
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{isEditingSnippet ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setCustomSnippets((prev) => ({
+                ...prev,
+                [activeCodeFile]: '',
+              }));
+              onLog(`Đã xóa nội dung tệp ${activeCodeFile} (Bấm Khôi Phục Lại để hoàn tác).`, 'warning');
+            }}
+            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>{isVi ? 'Xóa' : 'Delete'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setCustomSnippets(codeSnippets);
+              setActiveCodeFile('.github/workflows/deploy.yml');
+              setIsEditingSnippet(false);
+              onLog('Đã khôi phục lại toàn bộ mã nguồn cấu hình chuẩn ban đầu.', 'info');
+            }}
+            className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+          </button>
+
+          <button
+            onClick={handleDownloadSettingsJson}
+            className="btn-3d btn-3d-indigo px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isVi ? 'Xuất settings.json' : 'Export settings.json'}</span>
+          </button>
+        </div>
       </div>
 
       {/* GitHub Pages Ready Status Card */}
@@ -378,7 +441,7 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
           </div>
 
           <div className="flex gap-1 overflow-x-auto pb-1">
-            {Object.keys(codeSnippets).map((filename) => (
+            {Object.keys(customSnippets).map((filename) => (
               <button
                 key={filename}
                 onClick={() => setActiveCodeFile(filename)}
@@ -396,15 +459,29 @@ def ensure_ollama_cpu(host="http://127.0.0.1:11434", model="llama3.2", force_res
 
         <div className="relative">
           <button
-            onClick={() => copyCommand(codeSnippets[activeCodeFile], activeCodeFile)}
-            className="absolute right-3 top-3 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs flex items-center gap-1.5 border border-zinc-700"
+            onClick={() => copyCommand(customSnippets[activeCodeFile] || '', activeCodeFile)}
+            className="absolute right-3 top-3 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs flex items-center gap-1.5 border border-zinc-700 z-10"
           >
             {copiedCmd === activeCodeFile ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
             <span>{copiedCmd === activeCodeFile ? (isVi ? 'Đã chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
           </button>
-          <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap overflow-x-auto max-h-80">
-            {codeSnippets[activeCodeFile]}
-          </div>
+          {isEditingSnippet ? (
+            <textarea
+              value={customSnippets[activeCodeFile] || ''}
+              onChange={(e) =>
+                setCustomSnippets((prev) => ({
+                  ...prev,
+                  [activeCodeFile]: e.target.value,
+                }))
+              }
+              rows={12}
+              className="w-full p-4 rounded-xl bg-zinc-950 border-2 border-cyan-400 font-mono text-xs text-zinc-100 focus:outline-none"
+            />
+          ) : (
+            <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 font-mono text-xs text-zinc-300 whitespace-pre-wrap overflow-x-auto max-h-80">
+              {customSnippets[activeCodeFile]}
+            </div>
+          )}
         </div>
       </div>
     </div>

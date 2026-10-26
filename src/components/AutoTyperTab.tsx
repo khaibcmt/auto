@@ -16,7 +16,10 @@ import {
   Check, 
   Terminal,
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  Plus,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 import { TypingSimulator, TypingStats } from '../utils/typingEngine';
@@ -45,11 +48,13 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
   const defaultSample = `I'd go with Solution B. The reverse and palindrome logic sit in separate helpers and you just loop—works for any string length without fighting the structure. Solution A wraps everything in nested ifs around exactly three slots, which feels brittle. Solution C is broken in an obvious way: it reverses word1, word2, word3, but those variables never get set.`;
 
   const [targetText, setTargetText] = useState(preloadedText || defaultSample);
+  const [savedTargetSnapshot, setSavedTargetSnapshot] = useState(preloadedText || defaultSample);
   const [typedOutput, setTypedOutput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const targetTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Live typing stats
   const [stats, setStats] = useState<TypingStats>({
@@ -71,6 +76,7 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
   useEffect(() => {
     if (preloadedText) {
       setTargetText(preloadedText);
+      setSavedTargetSnapshot(preloadedText);
       onLog(isVi ? 'Đã nhận văn bản humanized vào AutoTyper' : 'Loaded humanized text into AutoTyper', 'info');
     }
   }, [preloadedText, isVi, onLog]);
@@ -351,6 +357,7 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
                     const f = e.target.files?.[0];
                     if (!f) return;
                     const txt = await f.text();
+                    setSavedTargetSnapshot(txt);
                     setTargetText(txt);
                     onLog(`Đã tải lên tệp "${f.name}" vào AutoTyper.`, 'info');
                     e.target.value = '';
@@ -360,10 +367,46 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
                 <span>{isVi ? 'Tải Lên' : 'Upload'}</span>
               </label>
               <button
-                onClick={() => setTargetText((p) => (p ? `${p}\nNội dung thêm mới...` : 'Nội dung mới...'))}
-                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg font-bold"
+                onClick={() => {
+                  if (targetText.trim()) setSavedTargetSnapshot(targetText);
+                  setTargetText((p) => (p ? `${p}\nNội dung thêm mới...` : 'Nội dung mới...'));
+                  onLog('Đã thêm nội dung mới vào kịch bản gõ AutoTyper.', 'info');
+                }}
+                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
               >
-                {isVi ? 'Thêm' : 'Add'}
+                <Plus className="w-3 h-3" />
+                <span>{isVi ? 'Thêm' : 'Add'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  targetTextareaRef.current?.focus();
+                  onLog('Đang chỉnh sửa trực tiếp Văn Bản Mục Tiêu Cần Gõ.', 'info');
+                }}
+                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>{isVi ? 'Chỉnh Sửa' : 'Edit'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (targetText.trim()) setSavedTargetSnapshot(targetText);
+                  setTargetText('');
+                  onLog('Đã xóa văn bản mục tiêu (Bấm Khôi Phục Lại để lấy lại).', 'warning');
+                }}
+                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{isVi ? 'Xóa' : 'Delete'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setTargetText(savedTargetSnapshot || defaultSample);
+                  onLog('Đã khôi phục lại văn bản mục tiêu AutoTyper.', 'info');
+                }}
+                className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
               </button>
               <button
                 onClick={() => {
@@ -375,26 +418,15 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
                   a.click();
                   URL.revokeObjectURL(url);
                 }}
-                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg font-bold"
+                className="btn-3d btn-3d-indigo text-xs px-2.5 py-1 rounded-lg font-bold"
               >
                 {isVi ? 'Tải Về' : 'Download'}
-              </button>
-              <button
-                onClick={() => setTargetText('')}
-                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
-              >
-                {isVi ? 'Xóa' : 'Clear'}
-              </button>
-              <button
-                onClick={() => setTargetText(defaultSample)}
-                className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg font-bold"
-              >
-                {isVi ? 'Mẫu' : 'Sample'}
               </button>
             </div>
           </div>
           <div className="flex-1 p-4 bg-zinc-950/50 doc-times-12pt">
             <textarea
+              ref={targetTextareaRef}
               value={targetText}
               onChange={(e) => setTargetText(e.target.value)}
               disabled={isTyping}
@@ -412,21 +444,49 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
         {/* Live Simulator Screen */}
         <div className="relative flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
           {/* Header */}
-          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
+          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className={`w-2.5 h-2.5 rounded-full ${isTyping ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-600'}`} />
               <span className="text-sm font-semibold text-zinc-200">
                 {isVi ? 'Màn Hình Giả Lập Gõ Trực Tiếp' : 'Live Typing Sandbox'}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                onClick={() => setTypedOutput((prev) => `${prev}\n${targetText.slice(0, 120)}`)}
+                className="btn-3d btn-3d-emerald text-xs px-2 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Plus className="w-3 h-3" />
+                <span>{isVi ? 'Thêm' : 'Add'}</span>
+              </button>
+              <button
+                onClick={() => targetTextareaRef.current?.focus()}
+                className="btn-3d btn-3d-amber text-xs px-2 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Edit3 className="w-3 h-3" />
+                <span>{isVi ? 'Chỉnh Sửa' : 'Edit'}</span>
+              </button>
+              <button
+                onClick={() => setTypedOutput('')}
+                className="btn-3d btn-3d-rose text-xs px-2 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>{isVi ? 'Xóa' : 'Delete'}</span>
+              </button>
+              <button
+                onClick={() => setTypedOutput(targetText)}
+                className="btn-3d btn-3d-cyan text-xs px-2 py-1 rounded-lg flex items-center gap-1 font-bold"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+              </button>
               {typedOutput && (
                 <button
                   onClick={handleCopyTyped}
-                  className="text-xs px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors flex items-center gap-1"
+                  className="btn-3d btn-3d-indigo text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
                 >
-                  {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? (isVi ? 'Đã sao chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
+                  {copied ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
+                  <span>{copied ? (isVi ? 'Đã chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
                 </button>
               )}
             </div>

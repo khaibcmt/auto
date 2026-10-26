@@ -60,6 +60,9 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
   const [currentSlideIdx, setCurrentSlideIdx] = useState<number>(0);
   const [isExportingPptx, setIsExportingPptx] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [savedSlidesSnapshot, setSavedSlidesSnapshot] = useState<SlideItem[]>(slides);
+  const [savedVideoSnapshot, setSavedVideoSnapshot] = useState<MicroVideoPackage>(microVideo);
+  const [savedWorksheetSnapshot, setSavedWorksheetSnapshot] = useState<WorksheetAndGamePackage>(worksheetGame);
   const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
   // Video Studio state
@@ -473,7 +476,7 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
           </button>
         </div>
 
-        {/* Universal 3D CRUD Buttons: Thêm, Tải lên, Chỉnh sửa, Xóa */}
+        {/* Universal 3D CRUD Buttons: Thêm, Chỉnh sửa, Xóa, Khôi phục lại, Tải lên */}
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={uploadInputRef}
@@ -484,11 +487,58 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
           />
 
           <button
-            onClick={handleAddItem}
+            onClick={() => {
+              setSavedSlidesSnapshot(slides);
+              setSavedVideoSnapshot(microVideo);
+              setSavedWorksheetSnapshot(worksheetGame);
+              handleAddItem();
+            }}
             className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
           >
             <Plus className="w-4 h-4" />
-            <span>Thêm Mới</span>
+            <span>Thêm</span>
+          </button>
+
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+              isEditing ? 'btn-3d-emerald' : 'btn-3d-amber'
+            }`}
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setSavedSlidesSnapshot(slides);
+              setSavedVideoSnapshot(microVideo);
+              setSavedWorksheetSnapshot(worksheetGame);
+              handleDeleteCurrentItem();
+            }}
+            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Xóa</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (activeSubTab === 'slides' && onUpdateSlides && savedSlidesSnapshot.length > 0) {
+                onUpdateSlides(savedSlidesSnapshot);
+                onLog('Đã khôi phục lại bộ Slide PPTX về trạng thái trước đó.', 'info');
+              } else if (activeSubTab === 'video' && onUpdateMicroVideo && savedVideoSnapshot) {
+                onUpdateMicroVideo(savedVideoSnapshot);
+                onLog('Đã khôi phục lại Kịch bản Video bài giảng.', 'info');
+              } else if (activeSubTab === 'worksheet_game' && onUpdateWorksheetGame && savedWorksheetSnapshot) {
+                onUpdateWorksheetGame(savedWorksheetSnapshot);
+                onLog('Đã khôi phục lại Phiếu học tập & Game học tập.', 'info');
+              }
+            }}
+            className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>Khôi Phục Lại</span>
           </button>
 
           <button
@@ -497,24 +547,6 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
           >
             <Upload className="w-4 h-4" />
             <span>Tải Lên</span>
-          </button>
-
-          <button
-            onClick={() => setIsEditing(!isEditing)}
-            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
-              isEditing ? 'btn-3d-amber' : 'btn-3d-indigo'
-            }`}
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
-          </button>
-
-          <button
-            onClick={handleDeleteCurrentItem}
-            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
-          >
-            <Trash2 className="w-4 h-4" />
-            <span>Xóa</span>
           </button>
         </div>
       </div>

@@ -9,7 +9,10 @@ import {
   Sliders, 
   Sparkles,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  Plus,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 import { 
@@ -35,12 +38,14 @@ export const ProseRulesTab: React.FC<ProseRulesTabProps> = ({
   onLog,
 }) => {
   const isVi = language === 'vi';
+  const [clicheList, setClicheList] = useState(AI_CLICHES);
+  const [isEditingCliches, setIsEditingCliches] = useState(false);
   const [filterQuery, setFilterQuery] = useState('');
   const [testSentence, setTestSentence] = useState(
     'Furthermore, it is important to note that leveraging this comprehensive architecture plays a crucial role in navigating the ever-evolving landscape of modern software engineering.'
   );
 
-  const filteredCliches = AI_CLICHES.filter(
+  const filteredCliches = clicheList.filter(
     (c) =>
       c.phrase.toLowerCase().includes(filterQuery.toLowerCase()) ||
       c.replacement.toLowerCase().includes(filterQuery.toLowerCase())
@@ -62,8 +67,8 @@ export const ProseRulesTab: React.FC<ProseRulesTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Overview Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-zinc-900 via-indigo-950/40 to-zinc-900 border border-zinc-800 shadow-xl">
+      {/* Overview Banner with Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại */}
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-zinc-900 via-indigo-950/40 to-zinc-900 border border-zinc-800 shadow-xl flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-start gap-4">
           <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
             <ShieldCheck className="w-6 h-6" />
@@ -78,6 +83,60 @@ export const ProseRulesTab: React.FC<ProseRulesTabProps> = ({
                 : 'Directly extracted from prose_rules.py. AI detectors look for monotonous sentence lengths (low burstiness), missing contractions, and formulaic transitional phrases. These rules enforce punchy senior engineer prose.'}
             </p>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            onClick={() => {
+              setClicheList((prev) => [
+                { phrase: 'in today’s fast-paced world', replacement: 'now / in production' },
+                ...prev,
+              ]);
+              setIsEditingCliches(true);
+              onLog('Đã thêm cụm từ cấm mới vào Bộ Quy Tắc Văn Phong.', 'info');
+            }}
+            className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{isVi ? 'Thêm' : 'Add'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsEditingCliches(!isEditingCliches)}
+            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+              isEditingCliches ? 'btn-3d-emerald' : 'btn-3d-amber'
+            }`}
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{isEditingCliches ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (clicheList.length > 1) {
+                setClicheList((prev) => prev.slice(1));
+                onLog('Đã xóa quy tắc đầu danh sách (Bấm Khôi Phục Lại để lấy lại).', 'warning');
+              }
+            }}
+            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>{isVi ? 'Xóa' : 'Delete'}</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setClicheList(AI_CLICHES);
+              setTestSentence(
+                'Furthermore, it is important to note that leveraging this comprehensive architecture plays a crucial role in navigating the ever-evolving landscape of modern software engineering.'
+              );
+              onLog('Đã khôi phục lại toàn bộ Bộ Quy Tắc Văn Phong gốc.', 'info');
+            }}
+            className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <RotateCcw className="w-4 h-4" />
+            <span>{isVi ? 'Khôi Phục Lại' : 'Restore'}</span>
+          </button>
         </div>
       </div>
 
@@ -196,11 +255,37 @@ export const ProseRulesTab: React.FC<ProseRulesTabProps> = ({
             <tbody className="divide-y divide-zinc-800/60 font-mono">
               {filteredCliches.map((item, idx) => (
                 <tr key={idx} className="hover:bg-zinc-800/30 transition-colors">
-                  <td className="py-2.5 px-3 text-rose-400 font-bold flex items-center gap-1.5">
-                    <span className="line-through">{item.phrase}</span>
+                  <td className="py-2.5 px-3 text-rose-400 font-bold">
+                    {isEditingCliches ? (
+                      <input
+                        type="text"
+                        value={item.phrase}
+                        onChange={(e) =>
+                          setClicheList((prev) =>
+                            prev.map((c, i) => (i === idx ? { ...c, phrase: e.target.value } : c))
+                          )
+                        }
+                        className="px-2 py-1 rounded bg-slate-950 border border-rose-400 text-xs text-rose-300 w-full"
+                      />
+                    ) : (
+                      <span className="line-through">{item.phrase}</span>
+                    )}
                   </td>
                   <td className="py-2.5 px-3 text-emerald-400 font-medium">
-                    {item.replacement}
+                    {isEditingCliches ? (
+                      <input
+                        type="text"
+                        value={item.replacement}
+                        onChange={(e) =>
+                          setClicheList((prev) =>
+                            prev.map((c, i) => (i === idx ? { ...c, replacement: e.target.value } : c))
+                          )
+                        }
+                        className="px-2 py-1 rounded bg-slate-950 border border-emerald-400 text-xs text-emerald-300 w-full"
+                      />
+                    ) : (
+                      item.replacement
+                    )}
                   </td>
                   <td className="py-2.5 px-3 text-zinc-400 text-[11px] font-sans hidden md:table-cell">
                     {isVi ? 'Từ đệm sáo rỗng đặc trưng của mô hình ngôn ngữ lớn' : 'Signature LLM synthetic filler phrase'}
