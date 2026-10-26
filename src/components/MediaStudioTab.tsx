@@ -17,6 +17,7 @@ import {
   Upload,
   Edit3,
   Trash2,
+  Users,
 } from 'lucide-react';
 import {
   SlideItem,
@@ -30,6 +31,7 @@ import {
 } from '../utils/exportHelpers';
 import { cleanPedagogyText } from '../data/pedagogyPresets';
 import { soundSynth } from '../utils/audioSynth';
+import { UniversalPresentationModal } from './UniversalPresentationModal';
 
 interface MediaStudioTabProps {
   lessonTitle: string;
@@ -41,6 +43,7 @@ interface MediaStudioTabProps {
   onUpdateWorksheetGame?: (wg: WorksheetAndGamePackage) => void;
   isGenerating: boolean;
   onRegenerateModule: (task: 'slides' | 'microvideo' | 'worksheet') => void;
+  onOpenSimulator?: () => void;
   onLog: (msg: string, level?: 'info' | 'engine' | 'warning') => void;
 }
 
@@ -54,12 +57,14 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
   onUpdateWorksheetGame,
   isGenerating,
   onRegenerateModule,
+  onOpenSimulator,
   onLog,
 }) => {
   const [activeSubTab, setActiveSubTab] = useState<'slides' | 'video' | 'worksheet_game'>('slides');
   const [currentSlideIdx, setCurrentSlideIdx] = useState<number>(0);
   const [isExportingPptx, setIsExportingPptx] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
+  const [isPresentationOpen, setIsPresentationOpen] = useState<boolean>(false);
   const [savedSlidesSnapshot, setSavedSlidesSnapshot] = useState<SlideItem[]>(slides);
   const [savedVideoSnapshot, setSavedVideoSnapshot] = useState<MicroVideoPackage>(microVideo);
   const [savedWorksheetSnapshot, setSavedWorksheetSnapshot] = useState<WorksheetAndGamePackage>(worksheetGame);
@@ -442,6 +447,22 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <UniversalPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialSourceType={
+          activeSubTab === 'slides'
+            ? 'slides'
+            : activeSubTab === 'video'
+            ? 'video'
+            : 'worksheet_game'
+        }
+        slides={slides}
+        microVideo={microVideo}
+        worksheetGame={worksheetGame}
+        onLog={onLog}
+      />
+
       {/* 3D Sub-navigation & Full CRUD Toolbar */}
       <div className="p-4 rounded-2xl bg-zinc-900 border-2 border-purple-400 flex flex-wrap items-center justify-between gap-4 shadow-xl">
         <div className="flex flex-wrap items-center gap-2">
@@ -476,7 +497,7 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
           </button>
         </div>
 
-        {/* Universal 3D CRUD Buttons: Thêm, Chỉnh sửa, Xóa, Khôi phục lại, Tải lên */}
+        {/* Universal 3D CRUD Buttons: Trình chiếu, Lớp học ảo, Thêm, Chỉnh sửa, Xóa, Khôi phục lại, Tải lên */}
         <div className="flex flex-wrap items-center gap-2">
           <input
             ref={uploadInputRef}
@@ -485,6 +506,27 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
             onChange={handleUploadFile}
             className="hidden"
           />
+
+          <button
+            onClick={() => {
+              setIsPresentationOpen(true);
+              onLog('Đã bật Chế Độ Full Màn Hình Trình Chiếu Slide PPTX / Video / Game Học Tập!', 'info');
+            }}
+            className="btn-3d btn-3d-amber px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-[0_0_18px_rgba(245,158,11,0.45)]"
+          >
+            <Presentation className="w-4 h-4" />
+            <span>Full Màn Hình Trình Chiếu Giảng Dạy</span>
+          </button>
+
+          {onOpenSimulator && (
+            <button
+              onClick={onOpenSimulator}
+              className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" />
+              <span>Đưa Vào Lớp Học Ảo 36 HS</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

@@ -33,6 +33,7 @@ interface HeaderProps {
   logCount: number;
   onOpenGuide: () => void;
   onOpenSecurityBackup?: () => void;
+  onOpenPresentation?: () => void;
   displayMode: ViewportDisplayMode;
   setDisplayMode: (mode: ViewportDisplayMode) => void;
 }
@@ -49,6 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
   logCount,
   onOpenGuide,
   onOpenSecurityBackup,
+  onOpenPresentation,
   displayMode,
   setDisplayMode,
 }) => {
@@ -220,6 +222,18 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Right 3D Quick Controls */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Trình Chiếu Giảng Dạy Full Màn Hình Cho Mọi Tính Năng */}
+            {onOpenPresentation && (
+              <button
+                onClick={onOpenPresentation}
+                className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap shadow-[0_0_18px_rgba(245,158,11,0.5)]"
+                title="Bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy Học Sinh cho tính năng hiện tại"
+              >
+                <Presentation className="w-4 h-4" />
+                <span>{isVi ? 'Trình Chiếu Full Màn Hình' : 'Fullscreen Presentation'}</span>
+              </button>
+            )}
+
             {/* Nút Nhập Key Sao Lưu & Chế Độ Bảo Mật Dữ Liệu (Tuyệt đối không hiện mật khẩu) */}
             <button
               onClick={() => {

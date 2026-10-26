@@ -12,6 +12,7 @@ import { DataBackupSyncTab, FullWorkspaceBackupPayload } from './components/Data
 import { DesktopCompanionTab } from './components/DesktopCompanionTab';
 import { SystemLogTab } from './components/SystemLogTab';
 import { GuideAndRoleModal } from './components/GuideAndRoleModal';
+import { UniversalPresentationModal, PresentationSourceType } from './components/UniversalPresentationModal';
 import { TabType, UserSettings, AppLog } from './types';
 import { DEFAULT_SYSTEM_PROMPT } from './data/proseRules';
 import {
@@ -43,6 +44,8 @@ import {
   Edit3,
   Trash2,
   RotateCcw,
+  Presentation,
+  Users,
 } from 'lucide-react';
 
 const STORAGE_KEY = 'autotyper_studio_pro_v3_settings';
@@ -440,11 +443,26 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [addLog]);
 
+  const [isGlobalPresentationOpen, setIsGlobalPresentationOpen] = useState<boolean>(false);
+
   const isPedagogyTab =
     activeTab === 'lesson5512' ||
     activeTab === 'examsuite' ||
     activeTab === 'mediastudio' ||
     activeTab === 'simulator';
+
+  const activePresentationSource: PresentationSourceType =
+    activeTab === 'lesson5512'
+      ? 'lesson5512'
+      : activeTab === 'examsuite'
+      ? 'examsuite'
+      : activeTab === 'mediastudio'
+      ? 'slides'
+      : activeTab === 'simulator'
+      ? 'simulator'
+      : activeTab === 'humanizer'
+      ? 'humanizer'
+      : 'custom';
 
   const currentBackupPayload: FullWorkspaceBackupPayload = {
     version: '3.0.0',
@@ -473,6 +491,22 @@ export default function App() {
 
   return (
     <div className="light-blue-3d-theme min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-900">
+      <UniversalPresentationModal
+        isOpen={isGlobalPresentationOpen}
+        onClose={() => setIsGlobalPresentationOpen(false)}
+        initialSourceType={activePresentationSource}
+        customTitle={`Trình Chiếu Giảng Dạy: ${lessonTitle} (${subject} - ${grade})`}
+        customText={preloadedTyperText || coreInput}
+        onUpdateCustomText={setCoreInput}
+        lessonPlan={lessonPlan}
+        slides={slides}
+        examPackage={examPackage}
+        microVideo={microVideo}
+        worksheetGame={worksheetGame}
+        simulatorText={preloadedTyperText || coreInput}
+        onLog={addLog}
+      />
+
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -488,6 +522,13 @@ export default function App() {
           setMaskedKeyDraft(settings.syncVaultKey || 'HTK-PRO-8899');
           setSecurityNotice(null);
           setIsSecurityModalOpen(true);
+        }}
+        onOpenPresentation={() => {
+          setIsGlobalPresentationOpen(true);
+          addLog(
+            `Đã kích hoạt Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy cho phân hệ "${activeTab.toUpperCase()}"!`,
+            'info'
+          );
         }}
         displayMode={displayMode}
         setDisplayMode={setDisplayMode}
@@ -661,7 +702,7 @@ export default function App() {
 
       <main className={`flex-1 ${viewportClassMap[displayMode]} px-4 sm:px-6 lg:px-8 py-6 space-y-6 transition-all duration-200`}>
         {/* Shared 3D Curriculum Cockpit Bar for Pedagogical Modules */}
-        {isPedagogyTab && (
+        {isPedagogyTab ? (
           <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-cyan-400 space-y-4">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
               <div className="flex items-center gap-3">
@@ -670,7 +711,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-sm sm:text-base font-extrabold text-white">
-                    Chủ Đề Bài Học & Nguồn Học Liệu Đồng Bộ
+                    Chủ Đề Bài Học & Nguồn Học Liệu Đồng Bộ Toàn Hệ Thống
                   </h2>
                   <p className="text-xs text-cyan-200">
                     Đang chọn: <b>{lessonTitle}</b> ({subject} · {grade})
@@ -679,6 +720,21 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {/* Nút Trình Chiếu Giảng Dạy Full Màn Hình */}
+                <button
+                  onClick={() => {
+                    setIsGlobalPresentationOpen(true);
+                    addLog(
+                      `Đã bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy cho "${lessonTitle}"!`,
+                      'info'
+                    );
+                  }}
+                  className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-[0_0_18px_rgba(245,158,11,0.45)]"
+                >
+                  <Presentation className="w-4 h-4" />
+                  <span>Full Màn Hình Trình Chiếu Giảng Dạy</span>
+                </button>
+
                 {CURRICULUM_PRESETS.map((preset, idx) => {
                   const btnStyles = [
                     'btn-3d-cyan',
@@ -818,6 +874,47 @@ export default function App() {
               </div>
             )}
           </div>
+        ) : (
+          /* Universal Presentation & Classroom Teaching Bar for all non-pedagogy tabs */
+          <div className="p-4 rounded-2xl bg-zinc-900 border-2 border-amber-400/90 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-400/50 text-amber-300">
+                <Presentation className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-xs sm:text-sm font-extrabold text-white uppercase tracking-wide">
+                  Sân Khấu Trình Chiếu & Giảng Dạy Học Sinh Full Màn Hình (100% Tính Năng)
+                </h2>
+                <p className="text-[11px] text-cyan-200">
+                  Trình chiếu trực tiếp phân hệ hiện tại hoặc chuyển sang Giáo án 5512 · Slide PPT · Đề thi · Lớp học ảo 36 HS AI
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  setIsGlobalPresentationOpen(true);
+                  addLog(
+                    `Đã bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy cho phân hệ "${activeTab.toUpperCase()}"!`,
+                    'info'
+                  );
+                }}
+                className="btn-3d btn-3d-amber px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-[0_0_18px_rgba(245,158,11,0.45)]"
+              >
+                <Presentation className="w-4 h-4" />
+                <span>Bật Full Màn Hình Trình Chiếu & Giảng Dạy</span>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('simulator')}
+                className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+              >
+                <Users className="w-4 h-4" />
+                <span>Mở Phòng Giả Lập 36 Học Sinh AI</span>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* AI HUMANIZER PRO */}
@@ -849,6 +946,15 @@ export default function App() {
           <ClassroomSimulatorTab
             language={settings.language}
             initialLessonText={preloadedTyperText || coreInput}
+            lessonPlan={lessonPlan}
+            slides={slides}
+            examPackage={examPackage}
+            worksheetGame={worksheetGame}
+            microVideo={microVideo}
+            onUpdateLessonPlan={(updated) => setLessonPlan(sanitizeLessonPlan(updated))}
+            onUpdateSlides={setSlides}
+            onUpdateExam={setExamPackage}
+            onUpdateWorksheetGame={setWorksheetGame}
             onSyncToAutoTyper={handleSendToTyper}
             onLog={addLog}
           />
@@ -862,6 +968,7 @@ export default function App() {
             isGenerating={isGeneratingModule}
             onRegenerate={() => handleRegeneratePedagogyTask('lesson5512')}
             onSendToTyper={handleSendToTyper}
+            onOpenSimulator={() => setActiveTab('simulator')}
             onLog={addLog}
           />
         )}
@@ -874,6 +981,7 @@ export default function App() {
             isGenerating={isGeneratingModule}
             onRegenerate={() => handleRegeneratePedagogyTask('exam3part')}
             onSendToTyper={handleSendToTyper}
+            onOpenSimulator={() => setActiveTab('simulator')}
             onLog={addLog}
           />
         )}
@@ -890,6 +998,7 @@ export default function App() {
             onUpdateWorksheetGame={setWorksheetGame}
             isGenerating={isGeneratingModule}
             onRegenerateModule={(task) => handleRegeneratePedagogyTask(task)}
+            onOpenSimulator={() => setActiveTab('simulator')}
             onLog={addLog}
           />
         )}

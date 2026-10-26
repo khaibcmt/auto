@@ -15,6 +15,8 @@ import {
   Trash2,
   FileCode2,
   RotateCcw,
+  Presentation,
+  Users,
 } from 'lucide-react';
 import {
   DifferentiatedExamPackage,
@@ -27,6 +29,7 @@ import {
 } from '../utils/exportHelpers';
 import { cleanPedagogyText } from '../data/pedagogyPresets';
 import { runAdversarialAuditInWorker } from '../utils/pedagogyWorkerRunner';
+import { UniversalPresentationModal } from './UniversalPresentationModal';
 
 interface ExamSuiteTabProps {
   examPackage: DifferentiatedExamPackage;
@@ -34,6 +37,7 @@ interface ExamSuiteTabProps {
   isGenerating: boolean;
   onRegenerate: () => void;
   onSendToTyper: (text: string) => void;
+  onOpenSimulator?: () => void;
   onLog: (msg: string, level?: 'info' | 'engine' | 'warning') => void;
 }
 
@@ -43,6 +47,7 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
   isGenerating,
   onRegenerate,
   onSendToTyper,
+  onOpenSimulator,
   onLog,
 }) => {
   const [activeSubView, setActiveSubView] = useState<'exam_key' | 'audit' | 'matrix'>('exam_key');
@@ -50,6 +55,7 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [savedExamSnapshot, setSavedExamSnapshot] = useState<DifferentiatedExamPackage>(examPackage);
+  const [isPresentationOpen, setIsPresentationOpen] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const getCompetencyColorClass = (text: string) => {
@@ -223,7 +229,15 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top 3D Action Toolbar: Thêm, Tải lên, Chỉnh sửa, Xóa, Tải về */}
+      <UniversalPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialSourceType="examsuite"
+        examPackage={examPackage}
+        onLog={onLog}
+      />
+
+      {/* Top 3D Action Toolbar: Trình chiếu, Lớp học ảo, Thêm, Tải lên, Chỉnh sửa, Xóa, Tải về */}
       <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-amber-400 flex flex-col gap-4 shadow-xl">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
@@ -243,6 +257,27 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
               onChange={handleUploadExamFile}
               className="hidden"
             />
+
+            <button
+              onClick={() => {
+                setIsPresentationOpen(true);
+                onLog('Đã bật Chế Độ Full Màn Hình Trình Chiếu & Chữa Đề Thi Cho Học Sinh!', 'info');
+              }}
+              className="btn-3d btn-3d-amber px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-[0_0_18px_rgba(245,158,11,0.45)]"
+            >
+              <Presentation className="w-4 h-4" />
+              <span>Full Màn Hình Trình Chiếu & Chữa Đề</span>
+            </button>
+
+            {onOpenSimulator && (
+              <button
+                onClick={onOpenSimulator}
+                className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+              >
+                <Users className="w-4 h-4" />
+                <span>Cho 36 HS AI Thi Thử</span>
+              </button>
+            )}
 
             <button
               onClick={() => {

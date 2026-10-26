@@ -10,6 +10,8 @@ import {
   Upload,
   FileText,
   RotateCcw,
+  Presentation,
+  Users,
 } from 'lucide-react';
 import { LessonPlan5512, CompetencyType } from '../types/pedagogyTypes';
 import {
@@ -18,6 +20,7 @@ import {
   detectCompetencyTypeFromText,
 } from '../utils/exportHelpers';
 import { cleanPedagogyText, buildLessonPlan5512FromInput } from '../data/pedagogyPresets';
+import { UniversalPresentationModal } from './UniversalPresentationModal';
 
 interface Lesson5512TabProps {
   lessonPlan: LessonPlan5512;
@@ -25,6 +28,7 @@ interface Lesson5512TabProps {
   isGenerating: boolean;
   onRegenerate: () => void;
   onSendToTyper: (text: string) => void;
+  onOpenSimulator?: () => void;
   onLog: (msg: string, level?: 'info' | 'engine' | 'warning') => void;
 }
 
@@ -34,10 +38,12 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
   isGenerating,
   onRegenerate,
   onSendToTyper,
+  onOpenSimulator,
   onLog,
 }) => {
   const [isEditing, setIsEditing] = useState<boolean>(false);
   const [savedPlanSnapshot, setSavedPlanSnapshot] = useState<LessonPlan5512>(lessonPlan);
+  const [isPresentationOpen, setIsPresentationOpen] = useState<boolean>(false);
 
   const updatePlan = (next: LessonPlan5512) => {
     setSavedPlanSnapshot(lessonPlan);
@@ -202,7 +208,15 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* 3D Action & CRUD Toolbar: Thêm · Tải lên · Chỉnh sửa · Xóa · Tải về */}
+      <UniversalPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialSourceType="lesson5512"
+        lessonPlan={lessonPlan}
+        onLog={onLog}
+      />
+
+      {/* 3D Action & CRUD Toolbar: Trình chiếu · Lớp học ảo · Thêm · Tải lên · Chỉnh sửa · Xóa · Tải về */}
       <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-cyan-400 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg sm:text-xl font-extrabold text-white doc-times-12pt">
@@ -214,6 +228,28 @@ export const Lesson5512Tab: React.FC<Lesson5512TabProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Nút Trình Chiếu Giảng Dạy Full Màn Hình */}
+          <button
+            onClick={() => {
+              setIsPresentationOpen(true);
+              onLog('Đã bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy Giáo Án 5512!', 'info');
+            }}
+            className="btn-3d btn-3d-amber px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 shadow-[0_0_18px_rgba(245,158,11,0.45)]"
+          >
+            <Presentation className="w-4 h-4" />
+            <span>Full Màn Hình Trình Chiếu Giảng Dạy</span>
+          </button>
+
+          {onOpenSimulator && (
+            <button
+              onClick={onOpenSimulator}
+              className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Users className="w-4 h-4" />
+              <span>Thử Tải Ở Lớp Học Ảo 36 HS</span>
+            </button>
+          )}
+
           {/* Thêm */}
           <button
             onClick={handleAddActivity}

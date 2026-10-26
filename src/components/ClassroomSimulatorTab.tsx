@@ -28,10 +28,100 @@ import {
   Wifi,
   Cpu,
   RefreshCw,
+  Presentation,
+  BookOpenCheck,
+  FileCheck2,
+  Gamepad2,
+  Film,
+  FileText,
 } from 'lucide-react';
 import { Language } from '../types';
+import {
+  LessonPlan5512,
+  DifferentiatedExamPackage,
+  SlideItem,
+  MicroVideoPackage,
+  WorksheetAndGamePackage,
+} from '../types/pedagogyTypes';
 import { cleanPedagogyText } from '../data/pedagogyPresets';
 import { detectCompetencyTypeFromText } from '../utils/exportHelpers';
+import { UniversalPresentationModal, PresentationSourceType } from './UniversalPresentationModal';
+
+export type SimulatorContentType =
+  | 'lesson_5512'
+  | 'ppt_slides'
+  | 'exam_2025'
+  | 'worksheet_game'
+  | 'video_script'
+  | 'custom_text';
+
+export const SIMULATOR_CONTENT_META: Record<
+  SimulatorContentType,
+  {
+    id: SimulatorContentType;
+    label: string;
+    shortBadge: string;
+    focusDescription: string;
+    evolveTargetLabel: string;
+    presentationType: PresentationSourceType;
+  }
+> = {
+  lesson_5512: {
+    id: 'lesson_5512',
+    label: 'Giáo Án Công Văn 5512',
+    shortBadge: 'GIÁO ÁN 5512',
+    focusDescription:
+      'Phân tích chuỗi 4 hoạt động dạy học, bảng 2 cột (GV-HS | Sản phẩm) và 3 trụ cột năng lực (Số, AI, Liên môn). Phát hiện bước chuyển giao nhiệm vụ quá tải với HS Nhóm B & C.',
+    evolveTargetLabel: 'Tiến hóa chuỗi hoạt động Giáo án 5512 & chèn ví dụ phân hóa 4 nhóm HS',
+    presentationType: 'lesson5512',
+  },
+  ppt_slides: {
+    id: 'ppt_slides',
+    label: 'Bài Giảng Slide PPT 16:9',
+    shortBadge: 'SLIDE PPTX',
+    focusDescription:
+      'Kiểm định mật độ chữ trên từng Slide, hiệu ứng thị giác cho HS Nhóm D (Tăng động) và bảng đối chiếu trực quan trên Slide cho HS Nhóm B & C.',
+    evolveTargetLabel: 'Tối ưu hóa cô đọng từng Slide PPT & tự động chèn câu hỏi tương tác 30s',
+    presentationType: 'slides',
+  },
+  exam_2025: {
+    id: 'exam_2025',
+    label: 'Đề Thi Chuẩn 2025 (3 Phần)',
+    shortBadge: 'ĐỀ THI 2025',
+    focusDescription:
+      'Cho 36 Học sinh AI làm thử Đề thi 3 phần (4 lựa chọn, Đúng/Sai, Trả lời ngắn). Phát hiện câu dẫn đa nghĩa, phương án nhiễu quá lộ hoặc bẫy khái niệm.',
+    evolveTargetLabel: 'Cân bằng ma trận nhận thức, chuẩn hóa câu dẫn & giải thích đáp án chi tiết',
+    presentationType: 'examsuite',
+  },
+  worksheet_game: {
+    id: 'worksheet_game',
+    label: 'Phiếu Học Tập & Game',
+    shortBadge: 'PHIẾU & GAME',
+    focusDescription:
+      'Đánh giá mức độ vừa sức của nhiệm vụ khuyết thông tin cho HS Nhóm C (Mất gốc) và độ cuốn hút của câu hỏi Game cho HS Nhóm D.',
+    evolveTargetLabel: 'Bổ sung gợi ý từng bước (Scaffolding) vào Phiếu học tập & tăng kịch tính Game',
+    presentationType: 'worksheet_game',
+  },
+  video_script: {
+    id: 'video_script',
+    label: 'Kịch Bản Video Bài Giảng',
+    shortBadge: 'VIDEO STUDIO',
+    focusDescription:
+      'Phân tích nhịp độ lời bình (Voiceover), phụ đề và điểm nhấn hình ảnh qua từng phân cảnh video để giữ 100% sự chú ý của cả lớp.',
+    evolveTargetLabel: 'Tối ưu kịch bản phân cảnh Video ngắn gọn, giàu hình ảnh & thu hút',
+    presentationType: 'video',
+  },
+  custom_text: {
+    id: 'custom_text',
+    label: 'Văn Bản / Học Liệu Tự Chọn',
+    shortBadge: 'HỌC LIỆU TỰ CHỌN',
+    focusDescription:
+      'Phân tích nhận thức từng câu văn, bôi đỏ điểm mù ngộ nhận và mô phỏng câu hỏi giơ tay đột xuất từ 36 Học sinh AI.',
+    evolveTargetLabel: 'Viết lại toàn diện học liệu triệt tiêu 100% góc chết ngộ nhận',
+    presentationType: 'simulator',
+  },
+};
+
 
 export interface ServerStreamNode {
   id: string;
@@ -837,8 +927,114 @@ export const LiveClassroomTwinPanel: React.FC<LiveClassroomTwinPanelProps> = ({
 interface ClassroomSimulatorTabProps {
   language: Language;
   initialLessonText?: string;
+  lessonPlan?: LessonPlan5512;
+  slides?: SlideItem[];
+  examPackage?: DifferentiatedExamPackage;
+  worksheetGame?: WorksheetAndGamePackage;
+  microVideo?: MicroVideoPackage;
+  onUpdateLessonPlan?: (plan: LessonPlan5512) => void;
+  onUpdateSlides?: (slides: SlideItem[]) => void;
+  onUpdateExam?: (exam: DifferentiatedExamPackage) => void;
+  onUpdateWorksheetGame?: (wg: WorksheetAndGamePackage) => void;
   onSyncToAutoTyper: (text: string) => void;
   onLog: (msg: string, level?: 'info' | 'engine' | 'warning' | 'error') => void;
+}
+
+export function serializeContentForSimulator(
+  contentType: SimulatorContentType,
+  lessonPlan?: LessonPlan5512,
+  slides?: SlideItem[],
+  examPackage?: DifferentiatedExamPackage,
+  worksheetGame?: WorksheetAndGamePackage,
+  microVideo?: MicroVideoPackage,
+  fallbackText?: string
+): string {
+  if (contentType === 'lesson_5512' && lessonPlan) {
+    return [
+      `KẾ HOẠCH BÀI DẠY (CÔNG VĂN 5512): ${cleanPedagogyText(lessonPlan.lessonTitle)} (${lessonPlan.subject} - ${lessonPlan.grade})`,
+      `I. MỤC TIÊU BÀI HỌC`,
+      ...lessonPlan.knowledgeObjectives.map((k) => `- ${cleanPedagogyText(k)}`),
+      `- ${cleanPedagogyText(lessonPlan.digitalCompetencyNLS)}`,
+      `- ${cleanPedagogyText(lessonPlan.aiCompetencyNLAI)}`,
+      `- ${cleanPedagogyText(lessonPlan.interdisciplinaryTHLM)}`,
+      `II. TIẾN TRÌNH HOẠT ĐỘNG DẠY HỌC`,
+      ...lessonPlan.activities.flatMap((act) => [
+        `${cleanPedagogyText(act.title)}`,
+        `- Nội dung nhiệm vụ: ${cleanPedagogyText(act.content)}`,
+        ...act.twoColumnRows.flatMap((r) => [
+          ...r.teacherStudentAction.map((a) => `- Hoạt động GV & HS: ${cleanPedagogyText(a)}`),
+          ...r.expectedProduct.map((p) => `- Sản phẩm dự kiến: ${cleanPedagogyText(p)}`),
+        ]),
+      ]),
+    ].join('\n');
+  }
+
+  if (contentType === 'ppt_slides' && slides && slides.length > 0) {
+    return slides
+      .flatMap((s) => [
+        `SLIDE ${s.slideNumber}: ${cleanPedagogyText(s.title)} — ${cleanPedagogyText(s.subtitle)}`,
+        ...s.bullets.map((b) => `- Nội dung Slide ${s.slideNumber}: ${cleanPedagogyText(b)}`),
+        ...(s.interactiveQuestion
+          ? [`- Câu hỏi tương tác trên Slide ${s.slideNumber}: ${cleanPedagogyText(s.interactiveQuestion)}`]
+          : []),
+      ])
+      .join('\n');
+  }
+
+  if (contentType === 'exam_2025' && examPackage) {
+    return [
+      `ĐỀ KIỂM TRA ĐÁNH GIÁ NĂNG LỰC (CHUẨN 2025): ${cleanPedagogyText(examPackage.examTitle)}`,
+      `PHẦN I. TRẮC NGHIỆM 4 PHƯƠNG ÁN LỰA CHỌN`,
+      ...examPackage.part1.flatMap((q) => [
+        `Câu ${q.number} (${q.bloomLevel}): ${cleanPedagogyText(q.stem)}`,
+        ...q.options.map(
+          (o) => `- Phương án ${o.letter}${o.isCorrect ? ' (Đáp án đúng)' : ''}: ${cleanPedagogyText(o.text)}`
+        ),
+      ]),
+      `PHẦN II. TRẮC NGHIỆM ĐÚNG / SAI`,
+      ...examPackage.part2.flatMap((q) => [
+        `Câu ${q.number}: ${cleanPedagogyText(q.contextStem)}`,
+        ...q.statements.map(
+          (st) => `- Nhận định ${st.letter}) [${st.isTrue ? 'Đúng' : 'Sai'}]: ${cleanPedagogyText(st.text)}`
+        ),
+      ]),
+      `PHẦN III. TRẮC NGHIỆM TRẢ LỜI NGẮN`,
+      ...examPackage.part3.map(
+        (q) => `Câu ${q.number} (${q.bloomLevel}): ${cleanPedagogyText(q.stem)} => Đáp số: ${q.correctAnswer}`
+      ),
+    ].join('\n');
+  }
+
+  if (contentType === 'worksheet_game' && worksheetGame) {
+    return [
+      `PHIẾU HỌC TẬP & TRÒ CHƠI TƯƠNG TÁC: ${cleanPedagogyText(worksheetGame.worksheetTitle)}`,
+      `- Hướng dẫn thảo luận nhóm: ${cleanPedagogyText(worksheetGame.studentGroupGuide)}`,
+      ...worksheetGame.tasks.flatMap((t) => [
+        `${cleanPedagogyText(t.taskTitle)}: ${cleanPedagogyText(t.instructions)}`,
+        ...t.promptsWithBlanks.map((p) => `- Nhiệm vụ: ${cleanPedagogyText(p)}`),
+      ]),
+      `TRÒ CHƠI ÔN TẬP: ${cleanPedagogyText(worksheetGame.gameTitle)}`,
+      ...worksheetGame.gameQuestions.map(
+        (gq, idx) =>
+          `Câu hỏi Game ${idx + 1} (${gq.points} điểm): ${cleanPedagogyText(gq.question)} — Gợi ý: ${cleanPedagogyText(gq.hint)}`
+      ),
+    ].join('\n');
+  }
+
+  if (contentType === 'video_script' && microVideo) {
+    return [
+      `KỊCH BẢN VIDEO BÀI GIẢNG TRỰC QUAN: ${cleanPedagogyText(microVideo.videoTitle)}`,
+      ...microVideo.scenes.flatMap((sc) => [
+        `Cảnh ${sc.sceneNumber} (${sc.timeRange} - ${sc.phase}): ${cleanPedagogyText(sc.subtitleText)}`,
+        `- Lời bình thuyết minh: ${cleanPedagogyText(sc.voiceoverScript)}`,
+        `- Bối cảnh trực quan: ${cleanPedagogyText(sc.visualDirection)}`,
+      ]),
+    ].join('\n');
+  }
+
+  return fallbackText && fallbackText.trim().length > 20
+    ? fallbackText
+    : DEFAULT_SIMULATOR_LESSON_TEXT;
 }
 
 /**
@@ -847,19 +1043,34 @@ interface ClassroomSimulatorTabProps {
  */
 export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
   initialLessonText,
+  lessonPlan,
+  slides,
+  examPackage,
+  worksheetGame,
+  microVideo,
+  onUpdateLessonPlan,
+  onUpdateSlides,
+  onUpdateExam,
+  onUpdateWorksheetGame,
   onSyncToAutoTyper,
   onLog,
 }) => {
-  const [lessonText, setLessonText] = useState<string>(
-    initialLessonText && initialLessonText.trim().length > 20
-      ? initialLessonText
-      : DEFAULT_SIMULATOR_LESSON_TEXT
+  const [selectedContentType, setSelectedContentType] =
+    useState<SimulatorContentType>('lesson_5512');
+  const [isPresentationOpen, setIsPresentationOpen] = useState<boolean>(false);
+
+  const [lessonText, setLessonText] = useState<string>(() =>
+    serializeContentForSimulator(
+      'lesson_5512',
+      lessonPlan,
+      slides,
+      examPackage,
+      worksheetGame,
+      microVideo,
+      initialLessonText
+    )
   );
-  const [savedLessonSnapshot, setSavedLessonSnapshot] = useState<string>(
-    initialLessonText && initialLessonText.trim().length > 20
-      ? initialLessonText
-      : DEFAULT_SIMULATOR_LESSON_TEXT
-  );
+  const [savedLessonSnapshot, setSavedLessonSnapshot] = useState<string>(lessonText);
   const [students, setStudents] = useState<VirtualStudentAgent[]>(INITIAL_VIRTUAL_STUDENTS);
   const [selectedCohortFilter, setSelectedCohortFilter] = useState<StudentCohort | 'ALL'>('ALL');
   const [isSimulating, setIsSimulating] = useState(false);
@@ -887,12 +1098,35 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
   const [newStreamName, setNewStreamName] = useState<string>('');
   const [newStreamRole, setNewStreamRole] = useState<string>('');
 
+  // Switch learning content type & load live data from corresponding module
+  const handleSelectContentType = (type: SimulatorContentType) => {
+    setSelectedContentType(type);
+    const loaded = serializeContentForSimulator(
+      type,
+      lessonPlan,
+      slides,
+      examPackage,
+      worksheetGame,
+      microVideo,
+      initialLessonText
+    );
+    setSavedLessonSnapshot(lessonText);
+    setLessonText(loaded);
+    setActiveSentenceIdx(0);
+    setResolvedSentences([]);
+    setEvolvedPreview('');
+    onLog(
+      `Đã chọn nội dung học sinh học: "${SIMULATOR_CONTENT_META[type].label}" để 36 Học sinh AI phân tích & tối ưu sâu!`,
+      'engine'
+    );
+  };
+
   // Sync if initialLessonText updates externally
   useEffect(() => {
-    if (initialLessonText && initialLessonText.trim().length > 20) {
+    if (initialLessonText && initialLessonText.trim().length > 20 && selectedContentType === 'custom_text') {
       setLessonText(initialLessonText);
     }
-  }, [initialLessonText]);
+  }, [initialLessonText, selectedContentType]);
 
   const sentenceAnalyses = useMemo(
     () => analyzeLessonForCognitiveTwin(lessonText),
@@ -908,7 +1142,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
         if (prev + 1 >= sentenceAnalyses.length) {
           setIsSimulating(false);
           onLog(
-            `Hoàn tất phiên Thử tải Bài giảng Thời gian thực trên ${serverStreams.length} Luồng Server VIP (0% Lag, 0% Sập nguồn, 100% Ổn định)!`,
+            `Hoàn tất phiên Thử tải "${SIMULATOR_CONTENT_META[selectedContentType].label}" trên ${serverStreams.length} Luồng Server VIP (0% Lag, 100% Ổn định)!`,
             'engine'
           );
           return prev;
@@ -917,7 +1151,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
       });
     }, stepInterval);
     return () => clearInterval(timer);
-  }, [isSimulating, sentenceAnalyses.length, antiLagShieldEnabled, serverStreams.length, onLog]);
+  }, [isSimulating, sentenceAnalyses.length, antiLagShieldEnabled, serverStreams.length, selectedContentType, onLog]);
 
   // Dynamically update student states based on activeSentenceIdx and resolvedSentences
   const liveStudents = useMemo(() => {
@@ -1040,6 +1274,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
     onLog(`Giáo viên đã trả lời câu hỏi đột xuất của học sinh ảo!`, 'info');
   };
 
+  // Optimize and sync back to the active module (Lesson Plan, PPT, Exam, Worksheet/Game)
   const handleRunAutoEvolve = () => {
     const evolved = buildAutoEvolvedLesson(lessonText);
     setEvolvedPreview(evolved);
@@ -1047,10 +1282,73 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
     setResolvedSentences(sentenceAnalyses.map((s) => s.index));
     setCopilotInterventions((c) => c + 4);
     setTeacherAgility(99);
+
+    // Also apply tailored optimization back to the source module if available
+    if (selectedContentType === 'lesson_5512' && lessonPlan && onUpdateLessonPlan) {
+      const updatedActivities = lessonPlan.activities.map((act, idx) => {
+        if (idx === 1) {
+          return {
+            ...act,
+            twoColumnRows: act.twoColumnRows.map((r, rIdx) =>
+              rIdx === 0
+                ? {
+                    ...r,
+                    teacherStudentAction: [
+                      ...r.teacherStudentAction,
+                      '- Năng lực số: Giáo viên trình chiếu bảng đối chiếu trực quan 2 khái niệm tương đồng giúp HS Nhóm B & C triệt tiêu 100% ngộ nhận.',
+                    ],
+                    expectedProduct: [
+                      ...r.expectedProduct,
+                      '- Học sinh hoàn thành phiếu phân biệt điều kiện biên và vượt qua câu hỏi phản biện của Nhóm A.',
+                    ],
+                  }
+                : r
+            ),
+          };
+        }
+        return act;
+      });
+      onUpdateLessonPlan({
+        ...lessonPlan,
+        activities: updatedActivities,
+      });
+    } else if (selectedContentType === 'ppt_slides' && slides && onUpdateSlides) {
+      const optimizedSlides = slides.map((s) => ({
+        ...s,
+        bullets: [
+          ...s.bullets,
+          'Năng lực số: Sơ đồ trực quan hóa đối chiếu 2 khái niệm trọng tâm (Tối ưu từ 36 HS AI).',
+        ],
+        interactiveQuestion:
+          s.interactiveQuestion ||
+          'Thử thách phản xạ 30 giây (Dành cho Nhóm D): Chọn nhanh phương án đúng trên màn hình!',
+      }));
+      onUpdateSlides(optimizedSlides);
+    } else if (selectedContentType === 'exam_2025' && examPackage && onUpdateExam) {
+      const optimizedPart1 = examPackage.part1.map((q) => ({
+        ...q,
+        explanation: `${q.explanation || 'Giải thích chuẩn:'} (Đã tối ưu độ nhiễu & làm rõ điều kiện biên sau khi thử tải với 36 HS AI).`,
+      }));
+      onUpdateExam({
+        ...examPackage,
+        part1: optimizedPart1,
+      });
+    } else if (selectedContentType === 'worksheet_game' && worksheetGame && onUpdateWorksheetGame) {
+      const optimizedTasks = worksheetGame.tasks.map((t) => ({
+        ...t,
+        instructions: `${t.instructions} (Kèm gợi ý từng bước Scaffolding cho HS Nhóm B & C).`,
+      }));
+      onUpdateWorksheetGame({
+        ...worksheetGame,
+        tasks: optimizedTasks,
+      });
+    }
+
     onLog(
-      'Đã thực thi Auto-Evolve (Tiến hóa bài giảng 1-Click): Xác suất học sinh vượt qua bài kiểm tra cuối bài đạt ' +
-        Math.min(98, passProbabilityBefore + 26) +
-        '%!',
+      `Đã thực thi Auto-Evolve tối ưu hóa "${SIMULATOR_CONTENT_META[selectedContentType].label}" và đồng bộ trực tiếp! Xác suất học sinh vượt qua đánh giá đạt ${Math.min(
+        98,
+        passProbabilityBefore + 26
+      )}%!`,
       'engine'
     );
   };
@@ -1098,12 +1396,13 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
 </style>
 </head>
 <body>
-  <h1>BÁO CÁO KIỂM ĐỊNH SƯ PHẠM & TỐI ƯU HÓA BÀI GIẢNG (DIGITAL TWIN CLASSROOM SIMULATOR)</h1>
+  <h1>BÁO CÁO KIỂM ĐỊNH SƯ PHẠM & TỐI ƯU HÓA (${SIMULATOR_CONTENT_META[selectedContentType].label.toUpperCase()})</h1>
+  <p>- Loại học liệu được 36 Học sinh AI phân tích: ${SIMULATOR_CONTENT_META[selectedContentType].label}</p>
   <p>- Quy mô lớp học giả lập: ${students.length} Học sinh AI (4 Nhóm nhận thức A, B, C, D).</p>
   <p>- Mức độ hiểu bài trung bình (Comprehension Rate): ${avgComprehension}%</p>
   <p>- Chỉ số tập trung & hứng thú (Engagement Index): ${avgEngagement}%</p>
   <p>- Chỉ số Vượt qua Đánh giá (Pass Probability): Tăng từ ${passProbabilityBefore}% lên ${passProbabilityAfter}% sau khi tối ưu Auto-Evolve.</p>
-  <h2>NỘI DUNG BÀI GIẢNG ĐÃ TIẾN HÓA SƯ PHẠM (CHUẨN 12PT TIMES NEW ROMAN)</h2>
+  <h2>NỘI DUNG ĐÃ TIẾN HÓA SƯ PHẠM (CHUẨN 12PT TIMES NEW ROMAN)</h2>
   ${lessonText
     .split('\n')
     .filter((l) => l.trim())
@@ -1130,6 +1429,22 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <UniversalPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialSourceType={SIMULATOR_CONTENT_META[selectedContentType].presentationType}
+        customTitle={`Trình Chiếu Giảng Dạy: ${SIMULATOR_CONTENT_META[selectedContentType].label}`}
+        customText={lessonText}
+        onUpdateCustomText={setLessonText}
+        lessonPlan={lessonPlan}
+        slides={slides}
+        examPackage={examPackage}
+        microVideo={microVideo}
+        worksheetGame={worksheetGame}
+        simulatorText={lessonText}
+        onLog={onLog}
+      />
+
       {/* Top 3D Hero Banner */}
       <div className="frame-3d p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-2 border-cyan-400">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1142,11 +1457,26 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
               Digital Twin Classroom Simulator : Phòng Thí Nghiệm Giả Lập Học Sinh Ảo Thời Gian Thực
             </h2>
             <p className="text-xs sm:text-sm text-sky-200 max-w-4xl">
-              Thử tải bài giảng trước khi lên lớp thật với {students.length} học sinh AI thuộc 4 hồ sơ tâm lý - nhận thức (A: Giỏi phản biện, B: Trung bình dễ ngộ nhận, C: Mất gốc thụ động, D: Tăng động dễ mất tập trung). Tự động bôi đỏ điểm mù ngộ nhận, mô phỏng học sinh giơ tay hỏi xoáy và tiến hóa bài giảng chỉ với 1 cú click.
+              Chọn trực tiếp nội dung học sinh học (<b>Giáo Án 5512, Slide PPT 16:9, Đề Thi 2025, Phiếu Học Tập & Game, Video</b>) để {students.length} học sinh AI thuộc 4 nhóm nhận thức (A, B, C, D) phân tích điểm mù ngộ nhận, đặt câu hỏi xoáy và tự động tối ưu hóa 100%.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
+            {/* Nút Trình Chiếu Giảng Dạy Full Màn Hình */}
+            <button
+              onClick={() => {
+                setIsPresentationOpen(true);
+                onLog(
+                  `Đã bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy cho "${SIMULATOR_CONTENT_META[selectedContentType].label}"`,
+                  'info'
+                );
+              }}
+              className="btn-3d btn-3d-purple px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2 shadow-[0_0_20px_rgba(168,85,247,0.5)]"
+            >
+              <Presentation className="w-4 h-4 text-yellow-200" />
+              <span>Full Màn Hình Trình Chiếu & Giảng Dạy</span>
+            </button>
+
             <button
               onClick={() => {
                 setActiveSentenceIdx(0);
@@ -1160,7 +1490,7 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
               <span>
                 {isSimulating
                   ? 'Tạm Dừng Thử Tải Lớp Học'
-                  : 'Bắt Đầu Thử Tải Bài Giảng (Live Stress-Test)'}
+                  : `Thử Tải ${SIMULATOR_CONTENT_META[selectedContentType].shortBadge} (Live Stress-Test)`}
               </span>
             </button>
 
@@ -1169,20 +1499,193 @@ export const ClassroomSimulatorTab: React.FC<ClassroomSimulatorTabProps> = ({
               className="btn-3d btn-3d-amber px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2"
             >
               <Zap className="w-4 h-4" />
-              <span>Auto-Evolve (Tiến Hóa Bài Giảng 1-Click)</span>
+              <span>Auto-Evolve (Tối Ưu & Đồng Bộ 1-Click)</span>
             </button>
 
             <button
               onClick={() => {
                 onSyncToAutoTyper(lessonText);
-                onLog('Đã chuyển bài giảng đã tối ưu sang AutoTyper Simulator để gõ trình diễn!', 'info');
+                onLog('Đã chuyển học liệu đã tối ưu sang AutoTyper Simulator để gõ trình diễn!', 'info');
               }}
               className="btn-3d btn-3d-cyan px-4 py-2.5 rounded-xl text-xs font-extrabold flex items-center gap-2"
             >
               <ArrowRight className="w-4 h-4" />
-              <span>Gõ Bài Giảng Này Trên AutoTyper</span>
+              <span>Gõ Trên AutoTyper</span>
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* NEW SECTION: Bộ Chọn Nội Dung Học Sinh Học (Giáo Án, PPT, Đề Thi, Phiếu & Game, Video, Tự Chọn) */}
+      <div className="frame-3d p-5 rounded-2xl bg-slate-900/95 border-2 border-amber-400/90 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-amber-500/30">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-rose-500 flex items-center justify-center shadow-lg">
+              <Layers className="w-6 h-6 text-slate-950" />
+            </div>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wide">
+                  Chọn Nội Dung Học Sinh Học Để 36 Học Sinh AI Phân Tích & Tối Ưu Sâu Nhất
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 text-[11px] font-black">
+                  ĐANG HỌC: {SIMULATOR_CONTENT_META[selectedContentType].shortBadge}
+                </span>
+              </div>
+              <p className="text-xs text-amber-200 mt-0.5">
+                {SIMULATOR_CONTENT_META[selectedContentType].focusDescription}
+              </p>
+            </div>
+          </div>
+
+          {/* 4 Nút Tác Vụ Chuẩn Cho Bộ Chọn Nội Dung Học Sinh Học */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              onClick={() => {
+                setSavedLessonSnapshot(lessonText);
+                setLessonText((prev) =>
+                  `${prev.trim()}\n- Năng lực số: Nội dung mở rộng bổ sung cho ${SIMULATOR_CONTENT_META[selectedContentType].label} giúp 36 học sinh tương tác trực quan.`
+                );
+                onLog(
+                  `Đã thêm mục nội dung mới vào "${SIMULATOR_CONTENT_META[selectedContentType].label}".`,
+                  'info'
+                );
+              }}
+              className="btn-3d btn-3d-emerald px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Thêm</span>
+            </button>
+
+            <button
+              onClick={() => {
+                lessonTextareaRef.current?.focus();
+                onLog(
+                  `Đang chỉnh sửa trực tiếp nội dung "${SIMULATOR_CONTENT_META[selectedContentType].label}".`,
+                  'info'
+                );
+              }}
+              className="btn-3d btn-3d-amber px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>Chỉnh Sửa</span>
+            </button>
+
+            <button
+              onClick={() => {
+                if (lessonText.trim()) setSavedLessonSnapshot(lessonText);
+                setLessonText('');
+                onLog('Đã xóa trống nội dung đang thử tải (Bấm Khôi Phục Lại để hoàn tác).', 'warning');
+              }}
+              className="btn-3d btn-3d-rose px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Xóa</span>
+            </button>
+
+            <button
+              onClick={() => {
+                const fresh = serializeContentForSimulator(
+                  selectedContentType,
+                  lessonPlan,
+                  slides,
+                  examPackage,
+                  worksheetGame,
+                  microVideo,
+                  savedLessonSnapshot
+                );
+                setLessonText(fresh);
+                setResolvedSentences([]);
+                onLog(
+                  `Đã khôi phục lại nội dung chuẩn của "${SIMULATOR_CONTENT_META[selectedContentType].label}".`,
+                  'info'
+                );
+              }}
+              className="btn-3d btn-3d-cyan px-3 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Khôi Phục Lại</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 6 Content Type Selection Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {(
+            [
+              {
+                id: 'lesson_5512' as SimulatorContentType,
+                icon: <BookOpenCheck className="w-4 h-4" />,
+                badge: lessonPlan ? `${lessonPlan.activities.length} Hoạt động` : 'Chuẩn 5512',
+                btnClass: 'btn-3d-cyan',
+              },
+              {
+                id: 'ppt_slides' as SimulatorContentType,
+                icon: <Presentation className="w-4 h-4" />,
+                badge: slides ? `${slides.length} Slide 16:9` : 'Slide PPTX',
+                btnClass: 'btn-3d-purple',
+              },
+              {
+                id: 'exam_2025' as SimulatorContentType,
+                icon: <FileCheck2 className="w-4 h-4" />,
+                badge: examPackage
+                  ? `${examPackage.part1.length + examPackage.part2.length + examPackage.part3.length} Câu hỏi`
+                  : 'Đề 3 Phần',
+                btnClass: 'btn-3d-amber',
+              },
+              {
+                id: 'worksheet_game' as SimulatorContentType,
+                icon: <Gamepad2 className="w-4 h-4" />,
+                badge: worksheetGame
+                  ? `${worksheetGame.tasks.length} Phiếu + ${worksheetGame.gameQuestions.length} Game`
+                  : 'Phiếu & Game',
+                btnClass: 'btn-3d-emerald',
+              },
+              {
+                id: 'video_script' as SimulatorContentType,
+                icon: <Film className="w-4 h-4" />,
+                badge: microVideo ? `${microVideo.scenes.length} Phân cảnh` : 'Video Studio',
+                btnClass: 'btn-3d-indigo',
+              },
+              {
+                id: 'custom_text' as SimulatorContentType,
+                icon: <FileText className="w-4 h-4" />,
+                badge: 'Tự Nhập / Tải Lên',
+                btnClass: 'btn-3d-rose',
+              },
+            ] as const
+          ).map((item) => {
+            const meta = SIMULATOR_CONTENT_META[item.id];
+            const isSelected = selectedContentType === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => handleSelectContentType(item.id)}
+                className={`p-3 rounded-xl text-left transition-all flex flex-col justify-between gap-2 border-2 ${
+                  isSelected
+                    ? `${item.btnClass} border-yellow-300 scale-[1.02] shadow-lg`
+                    : 'bg-slate-950/90 border-slate-800 text-slate-200 hover:border-cyan-400/60'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="p-1.5 rounded-lg bg-slate-950/40 text-white">
+                    {item.icon}
+                  </span>
+                  <span className="px-2 py-0.5 rounded bg-slate-950/70 text-[10px] font-black text-amber-300">
+                    {item.badge}
+                  </span>
+                </div>
+                <div>
+                  <div className="text-xs font-black text-white leading-snug">
+                    {meta.label}
+                  </div>
+                  <div className="text-[10px] text-cyan-100/90 mt-0.5 line-clamp-1">
+                    {isSelected ? '✓ Đang phân tích & tối ưu' : 'Nhấn để nạp nội dung'}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

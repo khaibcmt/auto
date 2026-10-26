@@ -57,23 +57,23 @@ export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
     id: 'feat-1-humanizer-autotyper',
     code: 'PHÂN HỆ 01 · FULLSCREEN PRO',
     versionTag: 'v2.4 → v3.0 VIP',
-    title: 'AI Humanizer PRO & AutoTyper Simulator (Có Chế Độ Full Màn Hình Để Trình Chiếu)',
+    title: 'Trình Chiếu & Giảng Dạy Full Màn Hình Cho 100% Tính Năng Của Trang Web',
     roleSummary:
-      'Chuyển hóa văn bản AI thành giọng văn sư phạm tự nhiên (nhiệt độ T=0) và mô phỏng gõ phím thời gian thực có Chế Độ Full Màn Hình Trình Chiếu (3 phông nền Sân Khấu 3D / Bảng Xanh / Giấy Trắng 12pt, phóng to chữ máy chiếu 12pt–48pt).',
+      'Tích hợp Sân khấu Trình chiếu & Giảng dạy Full Màn Hình 4K trên tất cả các tab (Giáo án 5512, Slide PPT 16:9, Đề thi 3 phần có nút Hiện/Ẩn Đáp Án, Phiếu học tập & Game, AI Humanizer, AutoTyper, Lớp học ảo) kèm Laser dẫn dòng, Đồng hồ đếm giờ lớp học và phóng to chữ 12pt–48pt.',
     usageGuide:
-      'Dán văn bản vào AI Humanizer PRO hoặc AutoTyper Simulator -> Bấm nút "Full Màn Hình Trình Chiếu" để phóng to toàn màn hình trên máy chiếu hội trường, tùy chỉnh tốc độ gõ Chậm/Chuẩn/Nhanh, cỡ chữ và âm thanh phím cơ.',
-    highlightColor: 'cyan',
+      'Bấm nút "Full Màn Hình Trình Chiếu Giảng Dạy" trên thanh Header hoặc ngay tại bất kỳ tính năng nào để trình chiếu cho học sinh, dùng phím mũi tên ← / → để chuyển trang, bấm "Hiện/Ẩn Đáp Án" khi chữa đề thi và nhấp vào dòng văn bản để bật thanh Laser dẫn dòng.',
+    highlightColor: 'amber',
     isAutoDetectedUpgrade: true,
   },
   {
     id: 'feat-2-digital-twin-classroom',
-    code: 'PHÂN HỆ 02 · MỚI',
+    code: 'PHÂN HỆ 02 · ĐA NỘI DUNG',
     versionTag: 'v3.0 DIGITAL TWIN',
-    title: 'Digital Twin Classroom Simulator: Phòng Lab Giả Lập 36 Học Sinh AI Thời Gian Thực',
+    title: 'Phòng Giả Lập 36 Học Sinh AI (Chọn Được Giáo Án 5512, Slide PPT, Đề Thi, Phiếu & Game)',
     roleSummary:
-      'Giả lập lớp học ảo gồm 36 học sinh AI thuộc 4 nhóm nhận thức (Nhóm A: Giỏi phản biện, Nhóm B: Trung bình dễ ngộ nhận, Nhóm C: Mất gốc thụ động, Nhóm D: Tăng động dễ mất tập trung) đọc bài giảng song song tốc độ gõ.',
+      'Cho phép giáo viên chọn trực tiếp loại nội dung học sinh học (Giáo Án Công Văn 5512, Bài Giảng Slide PPT 16:9, Đề Thi Chuẩn 2025, Phiếu Học Tập & Game, Kịch Bản Video, Học Liệu Tự Chọn) để 36 Học sinh AI (Nhóm A, B, C, D) phân tích sâu và tự động tối ưu hóa (Auto-Evolve) đồng bộ ngược về phân hệ gốc.',
     usageGuide:
-      'Bấm "Bắt Đầu Thử Tải Bài Giảng" để xem Biểu đồ Radar Nhận Thức, Bản Đồ Nhiệt Ngộ Nhận (bôi đỏ câu dễ hiểu sai), xử lý tình huống Học sinh ảo giơ tay hỏi xoáy bằng AI Co-pilot và bấm "Auto-Evolve" để tiến hóa bài giảng 1-Click.',
+      'Vào tab "Phòng Lab Lớp Học Ảo (36 HS AI)" -> Chọn loại học liệu tại khung "Chọn Nội Dung Học Sinh Học" (Giáo án, PPT, Đề thi...) -> Bấm "Thử Tải" hoặc "Auto-Evolve (Tối Ưu & Đồng Bộ 1-Click)" để nâng cấp toàn diện học liệu.',
     highlightColor: 'purple',
     isAutoDetectedUpgrade: true,
   },
@@ -97,8 +97,8 @@ export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
     roleSummary:
       'Tự động thiết lập giáo án 4 hoạt động (Hoạt động 2 kẻ bảng 2 cột chuẩn mực, không chứa từ thừa hay số phút thừa) và đề kiểm tra phân hóa Nhận biết - Thông hiểu - Vận dụng - Vận dụng cao.',
     usageGuide:
-      'Nhập tên bài học trên thanh trung tâm -> Chuyển qua tab Giáo Án 5512 hoặc Khảo Thí & Đề Thi để xem, chỉnh sửa trực tiếp và xuất file Word (.DOC) chuẩn font Times New Roman 12pt.',
-    highlightColor: 'amber',
+      'Nhập tên bài học trên thanh trung tâm -> Chuyển qua tab Giáo Án 5512 hoặc Khảo Thí & Đề Thi để trình chiếu full màn hình, chỉnh sửa trực tiếp và xuất file Word (.DOC) chuẩn font Times New Roman 12pt.',
+    highlightColor: 'cyan',
   },
   {
     id: 'feat-5-competency-color-map',
@@ -108,7 +108,7 @@ export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
     roleSummary:
       'Tự động nhận diện và tô màu toàn bộ câu văn thuộc 3 trụ cột năng lực: Màu Xanh Dương (#0052CC - Năng lực số), Màu Đỏ (#C81E1E - Năng lực AI), Màu Vàng Đậm (#B45309 - Tích hợp liên môn).',
     usageGuide:
-      'Mọi văn bản giáo án, đề thi, kịch bản lớp học ảo và tài liệu tải về (.DOC, .HTML) đều tự động áp dụng phông chữ Times New Roman cỡ 12pt và bảo toàn nguyên vẹn 3 mã màu năng lực.',
+      'Mọi văn bản giáo án, đề thi, kịch bản lớp học ảo, màn hình trình chiếu và tài liệu tải về (.DOC, .HTML) đều tự động áp dụng phông chữ Times New Roman cỡ 12pt và bảo toàn nguyên vẹn 3 mã màu năng lực.',
     highlightColor: 'indigo',
   },
   {
@@ -131,7 +131,7 @@ export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
     roleSummary:
       'Tích hợp sẵn khóa mặc định và cơ chế tự đồng bộ cho 37 mô hình AI (Gemini 2.5 → 5.0, GPT-5, Claude 4.5, DeepSeek R2, Grok 4, Qwen 3), đồng thời xuất Slide PPTX 16:9, kịch bản Micro-Video và Trò chơi học tập.',
     usageGuide:
-      'Vào tab "37 Mô Hình AI & Key" để chọn model hoặc bấm "Tự Động Đồng Bộ Tất Cả Key AI". Vào tab "Media, Slide & Game" để tải Slide .PPTX và tổ chức trò chơi tương tác.',
+      'Vào tab "Kho AI & Kết Nối" để chọn model hoặc bấm "Tự Động Đồng Bộ Tất Cả Key AI". Vào tab "Slide PPTX · Video · Game" để trình chiếu Full màn hình hoặc tải Slide .PPTX.',
     highlightColor: 'cyan',
   },
   {
@@ -142,7 +142,7 @@ export const DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY: WebFeatureRoleItem[] = [
     roleSummary:
       'Mọi phân hệ trong hệ thống đều trang bị đầy đủ 4 nút thao tác Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại kèm chế độ hiển thị Tự Động Co Dãn thông minh thích ứng mọi màn hình.',
     usageGuide:
-      'Sử dụng thanh công cụ 4 nút (Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại) ở bất kỳ tab nào để tùy biến nội dung và bấm "Khôi Phục Lại" bất cứ lúc nào để hoàn tác an toàn.',
+      'Sử dụng thanh công cụ 4 nút (Thêm, Chỉnh Sửa, Xóa, Khôi Phục Lại) ở bất kỳ tab nào hoặc ngay trên màn hình Trình Chiếu để tùy biến nội dung và bấm "Khôi Phục Lại" để hoàn tác an toàn.',
     highlightColor: 'emerald',
     isAutoDetectedUpgrade: true,
   },
@@ -157,12 +157,15 @@ export const GuideAndRoleModal: React.FC<GuideAndRoleModalProps> = ({
       const saved = localStorage.getItem(GUIDE_REGISTRY_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as WebFeatureRoleItem[];
-        // Auto-merge any newly added upgrade features from DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY
-        const existingIds = new Set(parsed.map((item) => item.id));
+        const defaultMap = new Map(
+          DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY.map((item) => [item.id, item])
+        );
+        const merged = parsed.map((item) => defaultMap.get(item.id) || item);
+        const existingIds = new Set(merged.map((item) => item.id));
         const newlyDiscovered = DEFAULT_AUTO_UPGRADE_FEATURE_REGISTRY.filter(
           (item) => !existingIds.has(item.id)
         );
-        return [...parsed, ...newlyDiscovered];
+        return [...merged, ...newlyDiscovered];
       }
     } catch {
       // Fallback

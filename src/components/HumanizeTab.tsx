@@ -16,6 +16,7 @@ import {
   Plus,
   Edit3,
   Trash2,
+  Presentation,
 } from 'lucide-react';
 import { Language, UserSettings } from '../types';
 import { 
@@ -27,6 +28,7 @@ import {
 import { CURATED_MODELS, PROVIDERS_META } from '../data/modelCatalog';
 import { analyzeProse } from '../utils/proseAnalyzer';
 import { ruleBasedHumanize, stripRewritePreamble } from '../utils/ruleBasedHumanizer';
+import { UniversalPresentationModal } from './UniversalPresentationModal';
 
 interface HumanizeTabProps {
   settings: UserSettings;
@@ -54,6 +56,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
   const [copied, setCopied] = useState(false);
   const [showPromptDetails, setShowPromptDetails] = useState(false);
   const [lastEngineNote, setLastEngineNote] = useState<string | null>(null);
+  const [isPresentationOpen, setIsPresentationOpen] = useState(false);
   const inputTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const outputTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -249,8 +252,36 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
 
   return (
     <div className="space-y-6">
+      <UniversalPresentationModal
+        isOpen={isPresentationOpen}
+        onClose={() => setIsPresentationOpen(false)}
+        initialSourceType="humanizer"
+        customTitle="AI Humanizer PRO · Trình Chiếu Văn Bản & Đối Sánh Văn Phong"
+        customText={outputText || inputText}
+        onUpdateCustomText={(txt) => {
+          if (outputText) setOutputText(txt);
+          else setInputText(txt);
+        }}
+        onLog={onLog}
+      />
+
       {/* Control Bar: Provider, Model, Strength & Style */}
-      <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl">
+      <div className="p-4 rounded-2xl bg-zinc-900/90 border border-zinc-800 shadow-xl space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-zinc-800">
+          <span className="text-xs font-extrabold text-cyan-300 uppercase tracking-wider">
+            AI Humanizer PRO · Chuyển Đổi Văn Phong Sư Phạm & Kỹ Thuật Chuẩn 12pt
+          </span>
+          <button
+            onClick={() => {
+              setIsPresentationOpen(true);
+              onLog('Đã bật Chế Độ Full Màn Hình Trình Chiếu & Giảng Dạy cho AI Humanizer PRO!', 'info');
+            }}
+            className="btn-3d btn-3d-amber px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Presentation className="w-4 h-4" />
+            <span>Full Màn Hình Trình Chiếu Giảng Dạy</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Provider Select */}
           <div>
