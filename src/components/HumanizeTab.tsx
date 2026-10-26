@@ -82,6 +82,35 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
     onLog(isVi ? 'Đã tải bộ câu hỏi mẫu phỏng vấn kỹ sư (answer.txt)' : 'Loaded sample interview assessment text (answer.txt)', 'info');
   };
 
+  const handleUploadTextFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const content = await file.text();
+      setInputText(content);
+      onLog(`Đã tải lên tệp "${file.name}" (${content.length} ký tự) để chỉnh sửa & Humanize.`, 'info');
+    } catch {
+      onLog('Không thể đọc tệp tải lên.', 'warning');
+    }
+    e.target.value = '';
+  };
+
+  const handleDownloadDoc = (textToSave: string, filename: string) => {
+    if (!textToSave.trim()) return;
+    const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset="utf-8"><style>body, p, div { font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.5; text-align: justify; }</style></head><body>${textToSave
+      .split('\n')
+      .map((l) => `<p>${l || '&nbsp;'}</p>`)
+      .join('')}</body></html>`;
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    onLog(`Đã tải về tệp ${filename} (Font Times New Roman 12pt).`, 'info');
+  };
+
   // Perform AI Humanization (supports Server API, Direct Local Ollama, and Static GitHub Pages Client Engine)
   const handleAiHumanize = async () => {
     if (!inputText.trim()) return;
@@ -346,31 +375,46 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
                 {isVi ? 'Văn Bản Gốc (AI / Cần Humanize)' : 'Original Text (Raw / AI)'}
               </span>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <label className="btn-3d btn-3d-purple text-xs px-2.5 py-1 rounded-lg cursor-pointer font-bold">
+                <input type="file" accept=".txt,.doc,.docx,.md" onChange={handleUploadTextFile} className="hidden" />
+                <span>{isVi ? 'Tải Lên' : 'Upload'}</span>
+              </label>
+              <button
+                onClick={() => setInputText((prev) => (prev ? `${prev}\n\nNội dung bổ sung mới...` : 'Nội dung mới...'))}
+                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Thêm' : 'Add'}
+              </button>
               <button
                 onClick={handleLoadSample}
-                className="text-xs px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
-                title={isVi ? 'Tải tệp câu hỏi mẫu answer.txt' : 'Load sample file answer.txt'}
+                className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg flex items-center gap-1 font-bold"
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>{isVi ? 'Tải Mẫu' : 'Sample'}</span>
+                <span>{isVi ? 'Mẫu' : 'Sample'}</span>
+              </button>
+              <button
+                onClick={() => handleDownloadDoc(inputText, 'Van_Ban_Goc_12pt.doc')}
+                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Tải Về (.DOC)' : 'Download'}
               </button>
               <button
                 onClick={() => setInputText('')}
-                className="text-xs px-2.5 py-1 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
               >
                 {isVi ? 'Xóa' : 'Clear'}
               </button>
             </div>
           </div>
 
-          <div className="relative flex-1 p-4 bg-zinc-950/50">
+          <div className="relative flex-1 p-4 bg-zinc-950/50 doc-times-12pt">
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
-              placeholder={isVi ? 'Dán văn bản bạn muốn humanize tại đây...' : 'Paste text to humanize here...'}
+              placeholder={isVi ? 'Dán hoặc tải lên văn bản bạn muốn chỉnh sửa & humanize tại đây...' : 'Paste text to humanize here...'}
               rows={14}
-              className="w-full h-full bg-transparent text-sm text-zinc-100 font-mono leading-relaxed resize-none focus:outline-none"
+              className="w-full h-full bg-transparent text-zinc-100 leading-relaxed resize-none focus:outline-none"
             />
           </div>
 
@@ -404,7 +448,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
               <span className="text-sm font-semibold text-zinc-200">
-                {isVi ? 'Kết Quả Humanized (Chuẩn Con Người)' : 'Humanized Output'}
+                {isVi ? 'Kết Quả Humanized (Times New Roman 12pt)' : 'Humanized Output'}
               </span>
               {outputText && (
                 <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -413,19 +457,31 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               {outputText && (
                 <>
                   <button
-                    onClick={handleCopy}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-zinc-800 text-zinc-200 hover:bg-zinc-700 transition-colors flex items-center gap-1.5"
+                    onClick={() => handleDownloadDoc(outputText, 'Van_Ban_Humanized_12pt.doc')}
+                    className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg font-bold"
                   >
-                    {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {isVi ? 'Tải Về (.DOC 12pt)' : 'Download .DOC'}
+                  </button>
+                  <button
+                    onClick={handleCopy}
+                    className="btn-3d btn-3d-indigo text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold"
+                  >
+                    {copied ? <Check className="w-3 h-3 text-emerald-300" /> : <Copy className="w-3 h-3" />}
                     <span>{copied ? (isVi ? 'Đã chép' : 'Copied') : (isVi ? 'Sao chép' : 'Copy')}</span>
                   </button>
                   <button
+                    onClick={() => setOutputText('')}
+                    className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
+                  >
+                    {isVi ? 'Xóa' : 'Clear'}
+                  </button>
+                  <button
                     onClick={() => onSendToTyper(outputText)}
-                    className="text-xs px-2.5 py-1 rounded-lg bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-600/30 transition-colors flex items-center gap-1.5 font-medium"
+                    className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg flex items-center gap-1.5 font-bold"
                     title={isVi ? 'Chuyển sang bộ giả lập gõ phím AutoTyper' : 'Send to AutoTyper live typing simulator'}
                   >
                     <span>{isVi ? 'Gõ Phím' : 'Send to Typer'}</span>

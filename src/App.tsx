@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Header } from './components/Header';
+import { Header, ViewportDisplayMode } from './components/Header';
 import { HumanizeTab } from './components/HumanizeTab';
 import { AutoTyperTab } from './components/AutoTyperTab';
 import { Lesson5512Tab } from './components/Lesson5512Tab';
@@ -10,6 +10,7 @@ import { ModelCatalogTab } from './components/ModelCatalogTab';
 import { DataBackupSyncTab, FullWorkspaceBackupPayload } from './components/DataBackupSyncTab';
 import { DesktopCompanionTab } from './components/DesktopCompanionTab';
 import { SystemLogTab } from './components/SystemLogTab';
+import { GuideAndRoleModal } from './components/GuideAndRoleModal';
 import { TabType, UserSettings, AppLog } from './types';
 import { DEFAULT_SYSTEM_PROMPT } from './data/proseRules';
 import {
@@ -19,6 +20,7 @@ import {
   buildSlidesFromInput,
   buildMicroVideoFromInput,
   buildWorksheetAndGameFromInput,
+  cleanPedagogyText,
 } from './data/pedagogyPresets';
 import {
   LessonPlan5512,
@@ -28,10 +30,10 @@ import {
   WorksheetAndGamePackage,
 } from './types/pedagogyTypes';
 import { generatePedagogyModuleOnDemand } from './utils/pedagogyApi';
-import { BookOpen, Sparkles, ChevronDown, ChevronUp, CloudUpload } from 'lucide-react';
+import { BookOpen, Sparkles, ChevronDown, ChevronUp, CloudUpload, HelpCircle } from 'lucide-react';
 
 const STORAGE_KEY = 'autotyper_studio_pro_v3_settings';
-const WORKSPACE_STORAGE_KEY = 'autotyper_studio_pro_v3_workspace';
+const WORKSPACE_STORAGE_KEY = 'autotyper_studio_pro_v3_workspace_clean';
 
 const DEFAULT_SETTINGS: UserSettings = {
   delayMin: 0.10,
@@ -53,11 +55,43 @@ const DEFAULT_SETTINGS: UserSettings = {
   aiBridgeAutoSync: true,
 };
 
+function sanitizeLessonPlan(lp: LessonPlan5512): LessonPlan5512 {
+  return {
+    ...lp,
+    lessonTitle: cleanPedagogyText(lp.lessonTitle),
+    duration: '',
+    knowledgeObjectives: (lp.knowledgeObjectives || []).map(cleanPedagogyText),
+    generalCompetencies: (lp.generalCompetencies || []).map(cleanPedagogyText),
+    specificCompetencies: (lp.specificCompetencies || []).map(cleanPedagogyText),
+    digitalCompetencyNLS: cleanPedagogyText(lp.digitalCompetencyNLS || ''),
+    aiCompetencyNLAI: cleanPedagogyText(lp.aiCompetencyNLAI || ''),
+    interdisciplinaryTHLM: cleanPedagogyText(lp.interdisciplinaryTHLM || ''),
+    qualities: (lp.qualities || []).map(cleanPedagogyText),
+    teacherEquipment: (lp.teacherEquipment || []).map(cleanPedagogyText),
+    studentEquipment: (lp.studentEquipment || []).map(cleanPedagogyText),
+    activities: (lp.activities || []).map((act) => ({
+      ...act,
+      title: cleanPedagogyText(act.title),
+      durationMinutes: 0,
+      objectives: (act.objectives || []).map(cleanPedagogyText),
+      content: cleanPedagogyText(act.content),
+      products: (act.products || []).map(cleanPedagogyText),
+      twoColumnRows: (act.twoColumnRows || []).map((r) => ({
+        ...r,
+        stepTitle: cleanPedagogyText(r.stepTitle),
+        teacherStudentAction: (r.teacherStudentAction || []).map(cleanPedagogyText),
+        expectedProduct: (r.expectedProduct || []).map(cleanPedagogyText),
+      })),
+    })),
+  };
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('humanizer');
   const [preloadedTyperText, setPreloadedTyperText] = useState<string>('');
+  const [isGuideOpen, setIsGuideOpen] = useState<boolean>(false);
+  const [displayMode, setDisplayMode] = useState<ViewportDisplayMode>('auto');
 
-  // Load saved settings from localStorage
   const [settings, setSettings] = useState<UserSettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -76,13 +110,12 @@ export default function App() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       } catch {
-        // LocalStorage quota or disabled
+        // Ignore
       }
       return updated;
     });
   }, []);
 
-  // Load saved workspace or initialize from default preset
   const defaultPreset = CURRICULUM_PRESETS[0];
   const savedWorkspace = (() => {
     try {
@@ -110,12 +143,14 @@ export default function App() {
   const [isGeneratingModule, setIsGeneratingModule] = useState<boolean>(false);
 
   const [lessonPlan, setLessonPlan] = useState<LessonPlan5512>(() =>
-    savedWorkspace?.lessonPlan ||
-    buildLessonPlan5512FromInput(
-      defaultPreset.lessonTitle,
-      defaultPreset.subject,
-      defaultPreset.grade,
-      defaultPreset.coreKnowledgeText
+    sanitizeLessonPlan(
+      savedWorkspace?.lessonPlan ||
+        buildLessonPlan5512FromInput(
+          defaultPreset.lessonTitle,
+          defaultPreset.subject,
+          defaultPreset.grade,
+          defaultPreset.coreKnowledgeText
+        )
     )
   );
   const [examPackage, setExamPackage] = useState<DifferentiatedExamPackage>(() =>
@@ -190,7 +225,6 @@ export default function App() {
     worksheetGame,
   ]);
 
-  // System Logs
   const [logs, setLogs] = useState<AppLog[]>([
     {
       id: 'log-1',
@@ -202,13 +236,7 @@ export default function App() {
       id: 'log-2',
       timestamp: new Date().toLocaleTimeString(),
       level: 'engine',
-      message: 'Đã đồng bộ kết nối toàn bộ 37 mô hình AI (100% Sẵn sàng).',
-    },
-    {
-      id: 'log-3',
-      timestamp: new Date().toLocaleTimeString(),
-      level: 'hotkey',
-      message: 'Phím tắt nhanh: Ctrl+Shift+H (AI Humanizer) & Ctrl+Alt+T (AutoTyper).',
+      message: 'Đã đồng bộ 37 mô hình AI, định dạng Times New Roman 12pt và hệ mã màu chuẩn.',
     },
   ]);
 
@@ -229,7 +257,6 @@ export default function App() {
     setLogs([]);
   };
 
-  // Restore full workspace from Cloud Sync ID, Portable Token, or File
   const handleRestoreWorkspace = (payload: FullWorkspaceBackupPayload) => {
     if (payload.settings) {
       updateSettings(payload.settings);
@@ -238,14 +265,13 @@ export default function App() {
     if (payload.subject) setSubject(payload.subject);
     if (payload.grade) setGrade(payload.grade);
     if (payload.coreInput) setCoreInput(payload.coreInput);
-    if (payload.lessonPlan) setLessonPlan(payload.lessonPlan);
+    if (payload.lessonPlan) setLessonPlan(sanitizeLessonPlan(payload.lessonPlan));
     if (payload.examPackage) setExamPackage(payload.examPackage);
     if (payload.slides) setSlides(payload.slides);
     if (payload.microVideo) setMicroVideo(payload.microVideo);
     if (payload.worksheetGame) setWorksheetGame(payload.worksheetGame);
   };
 
-  // Switch tab and send text to AutoTyper Simulator
   const handleSendToTyper = (text: string) => {
     setPreloadedTyperText(text);
     setActiveTab('autotyper');
@@ -255,7 +281,6 @@ export default function App() {
     );
   };
 
-  // Progressive On-Demand Generator
   const handleRegeneratePedagogyTask = async (
     task: 'lesson5512' | 'exam3part' | 'slides' | 'microvideo' | 'worksheet',
     overrideText?: string,
@@ -282,7 +307,7 @@ export default function App() {
           },
           addLog
         );
-        setLessonPlan(data);
+        setLessonPlan(sanitizeLessonPlan(data));
       } else if (task === 'exam3part') {
         const { data } = await generatePedagogyModuleOnDemand<DifferentiatedExamPackage>(
           'exam3part',
@@ -341,7 +366,6 @@ export default function App() {
     }
   };
 
-  // Sync all pedagogical modules when preset changes or user clicks Sync Core Knowledge
   const handleSyncAllFromCoreInput = (
     newTitle: string,
     newSubject: string,
@@ -353,7 +377,9 @@ export default function App() {
     setGrade(newGrade);
     setCoreInput(newText);
 
-    setLessonPlan(buildLessonPlan5512FromInput(newTitle, newSubject, newGrade, newText));
+    setLessonPlan(
+      sanitizeLessonPlan(buildLessonPlan5512FromInput(newTitle, newSubject, newGrade, newText))
+    );
     setExamPackage(buildExamPackageFromInput(newTitle, newSubject, newGrade, newText));
     setSlides(buildSlidesFromInput(newTitle, newSubject, newGrade, newText));
     setMicroVideo(buildMicroVideoFromInput(newTitle, newSubject, newGrade, newText));
@@ -380,7 +406,6 @@ export default function App() {
     setActiveTab('humanizer');
   };
 
-  // In-browser shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'h') {
@@ -417,8 +442,17 @@ export default function App() {
     worksheetGame,
   };
 
+  const viewportClassMap: Record<ViewportDisplayMode, string> = {
+    auto: 'viewport-mode-auto',
+    pc: 'viewport-mode-pc',
+    laptop: 'viewport-mode-laptop',
+    tablet: 'viewport-mode-tablet',
+    mobile: 'viewport-mode-mobile',
+    projector: 'viewport-mode-projector',
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-900">
+    <div className="light-blue-3d-theme min-h-screen bg-gradient-to-br from-sky-100 via-blue-50 to-cyan-100 text-slate-100 flex flex-col font-sans selection:bg-cyan-500/30 selection:text-cyan-900">
       <Header
         activeTab={activeTab}
         setActiveTab={setActiveTab}
@@ -429,9 +463,23 @@ export default function App() {
         currentProvider={settings.provider}
         currentModel={settings.model}
         logCount={logs.length}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        displayMode={displayMode}
+        setDisplayMode={setDisplayMode}
       />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      <GuideAndRoleModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+        lessonPlan={lessonPlan}
+        examPackage={examPackage}
+        slides={slides}
+        worksheetGame={worksheetGame}
+        fullBackupData={currentBackupPayload}
+        onLog={addLog}
+      />
+
+      <main className={`flex-1 ${viewportClassMap[displayMode]} px-4 sm:px-6 lg:px-8 py-6 space-y-6 transition-all duration-200`}>
         {/* Shared 3D Curriculum Cockpit Bar for Pedagogical Modules */}
         {isPedagogyTab && (
           <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-cyan-400 space-y-4">
@@ -536,7 +584,7 @@ export default function App() {
                     value={coreInput}
                     onChange={(e) => setCoreInput(e.target.value)}
                     rows={4}
-                    className="w-full p-3 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-slate-100 font-mono leading-relaxed focus:outline-none"
+                    className="w-full p-3 rounded-xl bg-slate-950 border-2 border-cyan-500 text-xs text-slate-100 doc-times-12pt leading-relaxed focus:outline-none"
                   />
                 </div>
 
@@ -579,10 +627,11 @@ export default function App() {
           />
         )}
 
-        {/* LESSON PLAN & COMPETENCY COLOR MAP */}
+        {/* LESSON PLAN 5512 */}
         {activeTab === 'lesson5512' && (
           <Lesson5512Tab
             lessonPlan={lessonPlan}
+            onUpdateLessonPlan={(updated) => setLessonPlan(sanitizeLessonPlan(updated))}
             isGenerating={isGeneratingModule}
             onRegenerate={() => handleRegeneratePedagogyTask('lesson5512')}
             onSendToTyper={handleSendToTyper}
@@ -609,6 +658,9 @@ export default function App() {
             slides={slides}
             microVideo={microVideo}
             worksheetGame={worksheetGame}
+            onUpdateSlides={setSlides}
+            onUpdateMicroVideo={setMicroVideo}
+            onUpdateWorksheetGame={setWorksheetGame}
             isGenerating={isGeneratingModule}
             onRegenerateModule={(task) => handleRegeneratePedagogyTask(task)}
             onLog={addLog}
@@ -678,13 +730,21 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={() => setIsGuideOpen(true)}
+              className="btn-3d btn-3d-rose px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Hướng Dẫn & Tải Đa Định Dạng</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('sync')}
               className="btn-3d btn-3d-cyan px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
             >
               <CloudUpload className="w-3.5 h-3.5" />
-              <span>Mã Sao Lưu Hiện Tại: {settings.syncVaultKey || 'HTK-PRO-8899'}</span>
+              <span>Mã Sao Lưu: {settings.syncVaultKey || 'HTK-PRO-8899'}</span>
             </button>
           </div>
         </div>

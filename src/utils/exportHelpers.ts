@@ -1,7 +1,8 @@
 /**
- * Lazy-Loading Export Engine (export_helpers.ts)
- * Dynamically loads heavy libraries (PptxGenJS, etc.) only on user click (< 0.8s initial page load)
- * and builds formatted Word (.docx) & PowerPoint (.pptx) documents with Competency Color Coding.
+ * Multi-Format Export Engine (Word .doc, Print HTML, PPTX, TXT, JSON)
+ * - Enforces Times New Roman 12pt across all Lesson Plans, Exams, and Worksheets
+ * - Applies full-sentence Competency Color Coding (Blue = Năng lực số, Red = Năng lực AI, Amber/Gold = Tích hợp liên môn)
+ * - Zero redundant bracket tags, zero minute counts, clean 2-column header (HOẠT ĐỘNG CỦA GIÁO VIÊN VÀ HỌC SINH | DỰ KIẾN SẢN PHẨM)
  */
 
 import {
@@ -9,7 +10,9 @@ import {
   DifferentiatedExamPackage,
   SlideItem,
   WorksheetAndGamePackage,
+  CompetencyType,
 } from '../types/pedagogyTypes';
+import { cleanPedagogyText } from '../data/pedagogyPresets';
 
 const loadedScripts = new Map<string, Promise<void>>();
 
@@ -35,39 +38,83 @@ export function loadScriptOnce(url: string): Promise<void> {
 }
 
 /**
- * Highlights [NLS] in Blue, [NLAI] in Red, and [THLM] in Amber/Gold inside Word HTML content.
+ * Detects whether a line belongs to Năng lực số (NLS - Blue), Năng lực AI (NLAI - Red),
+ * or Tích hợp liên môn (THLM - Amber/Gold) so the ENTIRE sentence is colored without bracket boxes.
  */
-function formatCompetencyColorsForWord(text: string): string {
-  const escaped = text
+export function detectCompetencyTypeFromText(
+  rawText: string,
+  forcedType?: CompetencyType
+): CompetencyType | null {
+  if (forcedType) return forcedType;
+  const lower = rawText.toLowerCase();
+  if (
+    rawText.includes('[NLS') ||
+    lower.includes('năng lực số') ||
+    lower.includes('học liệu số') ||
+    lower.includes('dữ liệu số') ||
+    lower.includes('phần mềm mô phỏng') ||
+    lower.includes('sơ đồ số')
+  ) {
+    return 'NLS';
+  }
+  if (
+    rawText.includes('[NLAI') ||
+    lower.includes('năng lực trí tuệ nhân tạo') ||
+    lower.includes('năng lực ai') ||
+    lower.includes('công cụ ai') ||
+    lower.includes('truy vấn công cụ ai') ||
+    lower.includes('nhận định của ai')
+  ) {
+    return 'NLAI';
+  }
+  if (
+    rawText.includes('[THLM') ||
+    lower.includes('tích hợp liên môn') ||
+    lower.includes('liên môn')
+  ) {
+    return 'THLM';
+  }
+  return null;
+}
+
+function escapeHtml(raw: string): string {
+  return cleanPedagogyText(raw)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-
-  return escaped
-    .replace(
-      /\[NLS[^\]]*\]/g,
-      (m) =>
-        `<span style="color:#1d4ed8;background-color:#dbeafe;font-weight:bold;">${m}</span>`
-    )
-    .replace(
-      /\[NLAI[^\]]*\]/g,
-      (m) =>
-        `<span style="color:#b91c1c;background-color:#fee2e2;font-weight:bold;">${m}</span>`
-    )
-    .replace(
-      /\[THLM[^\]]*\]/g,
-      (m) =>
-        `<span style="color:#b45309;background-color:#fef3c7;font-weight:bold;">${m}</span>`
-    );
 }
 
-function downloadWordDocument(htmlBody: string, filename: string) {
-  const fullHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+/**
+ * Formats a line for Word/HTML export: colors the entire text in Blue (NLS), Red (NLAI), or Gold (THLM)
+ * with Times New Roman 12pt and zero bracket tags.
+ */
+export function formatLineWithCompetencyColorHtml(
+  rawText: string,
+  forcedType?: CompetencyType
+): string {
+  const detected = detectCompetencyTypeFromText(rawText, forcedType);
+  const cleaned = escapeHtml(rawText);
+
+  if (detected === 'NLS') {
+    return `<span style="color:#0052cc;font-weight:bold;">${cleaned}</span>`;
+  }
+  if (detected === 'NLAI') {
+    return `<span style="color:#c81e1e;font-weight:bold;">${cleaned}</span>`;
+  }
+  if (detected === 'THLM') {
+    return `<span style="color:#b45309;font-weight:bold;">${cleaned}</span>`;
+  }
+  return cleaned;
+}
+
+function buildStandardDocumentHtml(htmlBody: string, title: string): string {
+  return `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
 xmlns:w="urn:schemas-microsoft-com:office:word"
-xmlns="http://www.w3.org/TR/REC-html40">
+xmlns="http://www.w3.org/TR/REC-html40" lang="vi">
 <head>
 <meta charset="utf-8">
-<title>${filename}</title>
+<title>${title}</title>
 <!--[if gte mso 9]>
 <xml>
   <w:WordDocument>
@@ -84,36 +131,46 @@ xmlns="http://www.w3.org/TR/REC-html40">
   }
   body {
     font-family: "Times New Roman", Times, serif;
-    font-size: 13pt;
-    line-height: 1.35;
+    font-size: 12pt;
+    line-height: 1.45;
     text-align: justify;
-    color: #111827;
+    color: #000000;
   }
   h1, h2, h3, h4 {
     font-family: "Times New Roman", Times, serif;
-    margin-top: 10pt;
-    margin-bottom: 6pt;
-  }
-  p {
-    margin-top: 3pt;
+    font-size: 12pt;
+    font-weight: bold;
+    margin-top: 8pt;
     margin-bottom: 4pt;
+  }
+  h2 {
+    font-size: 13pt;
+  }
+  p, div, span, li {
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
+    margin-top: 2pt;
+    margin-bottom: 3pt;
     text-align: justify;
   }
   table {
     width: 100%;
     border-collapse: collapse;
-    margin-top: 8pt;
-    margin-bottom: 10pt;
+    margin-top: 6pt;
+    margin-bottom: 8pt;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
   }
   th, td {
-    border: 1pt solid #111827;
+    border: 1pt solid #000000;
     padding: 6pt 8pt;
     vertical-align: top;
     text-align: justify;
-    font-size: 12.5pt;
+    font-family: "Times New Roman", Times, serif;
+    font-size: 12pt;
   }
   th {
-    background-color: #f3f4f6;
+    background-color: #e0f2fe;
     font-weight: bold;
     text-align: center;
   }
@@ -123,51 +180,101 @@ xmlns="http://www.w3.org/TR/REC-html40">
 ${htmlBody}
 </body>
 </html>`;
+}
 
+export function downloadWordDocument(htmlBody: string, filename: string) {
+  const fullHtml = buildStandardDocumentHtml(htmlBody, filename);
   const blob = new Blob(['\ufeff', fullHtml], {
     type: 'application/msword;charset=utf-8',
   });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename.endsWith('.doc') || filename.endsWith('.docx') ? filename : `${filename}.doc`;
+  a.download =
+    filename.endsWith('.doc') || filename.endsWith('.docx')
+      ? filename
+      : `${filename}.doc`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
 
-/**
- * Module 3 & 4: Export Lesson Plan 5512 to Word (.doc/.docx) with 2-Column Activity 2 Table & 3-Color Competency Map
- */
-export function exportLesson5512ToWord(plan: LessonPlan5512) {
+export function downloadHtmlDocumentWithExactColors(htmlBody: string, filename: string) {
+  const fullHtml = buildStandardDocumentHtml(htmlBody, filename);
+  const blob = new Blob([fullHtml], {
+    type: 'text/html;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.html') ? filename : `${filename}.html`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function downloadPlainTextFile(text: string, filename: string) {
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.txt') ? filename : `${filename}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function downloadJsonFile(data: unknown, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: 'application/json;charset=utf-8',
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename.endsWith('.json') ? filename : `${filename}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+export function buildLesson5512HtmlBody(plan: LessonPlan5512): string {
   const activitiesHtml = plan.activities
     .map((act) => {
+      const cleanActTitle = cleanPedagogyText(act.title);
       const objLines = act.objectives
-        .map((o) => `<p>- ${formatCompetencyColorsForWord(o)}</p>`)
+        .map((o) => `<p>- ${formatLineWithCompetencyColorHtml(o)}</p>`)
         .join('');
       const prodLines = act.products
-        .map((p) => `<p>- ${formatCompetencyColorsForWord(p)}</p>`)
+        .map((p) => `<p>- ${formatLineWithCompetencyColorHtml(p)}</p>`)
         .join('');
 
       const tableRows = act.twoColumnRows
         .map((row) => {
           const col1 = row.teacherStudentAction
             .map((line) => {
-              const normalized = line.trim().startsWith('-') ? line.trim() : `- ${line.trim()}`;
-              return `<p>${formatCompetencyColorsForWord(normalized)}</p>`;
+              const cleaned = cleanPedagogyText(line);
+              const normalized = cleaned.startsWith('-') ? cleaned : `- ${cleaned}`;
+              return `<p>${formatLineWithCompetencyColorHtml(normalized)}</p>`;
             })
             .join('');
           const col2 = row.expectedProduct
             .map((line) => {
-              const normalized = line.trim().startsWith('-') || line.trim().startsWith('I') ? line.trim() : `- ${line.trim()}`;
-              return `<p>${formatCompetencyColorsForWord(normalized)}</p>`;
+              const cleaned = cleanPedagogyText(line);
+              const normalized =
+                cleaned.startsWith('-') || cleaned.startsWith('I')
+                  ? cleaned
+                  : `- ${cleaned}`;
+              return `<p>${formatLineWithCompetencyColorHtml(normalized)}</p>`;
             })
             .join('');
           return `
             <tr>
               <td width="52%">
-                <p><b>${formatCompetencyColorsForWord(row.stepTitle)}</b></p>
+                <p><b>${escapeHtml(row.stepTitle)}</b></p>
                 ${col1}
               </td>
               <td width="48%">
@@ -179,11 +286,11 @@ export function exportLesson5512ToWord(plan: LessonPlan5512) {
         .join('');
 
       return `
-        <h3>${formatCompetencyColorsForWord(act.title)} (${act.durationMinutes} phút)</h3>
+        <h3>${escapeHtml(cleanActTitle)}</h3>
         <p><b>a) Mục tiêu:</b></p>
         ${objLines}
         <p><b>b) Nội dung:</b></p>
-        <p>- ${formatCompetencyColorsForWord(act.content)}</p>
+        <p>- ${formatLineWithCompetencyColorHtml(act.content)}</p>
         <p><b>c) Sản phẩm:</b></p>
         ${prodLines}
         <p><b>d) Tổ chức thực hiện:</b></p>
@@ -191,7 +298,7 @@ export function exportLesson5512ToWord(plan: LessonPlan5512) {
           <thead>
             <tr>
               <th width="52%">HOẠT ĐỘNG CỦA GIÁO VIÊN VÀ HỌC SINH</th>
-              <th width="48%">DỰ KIẾN SẢN PHẨM / NỘI DUNG CỐT LÕI</th>
+              <th width="48%">DỰ KIẾN SẢN PHẨM</th>
             </tr>
           </thead>
           <tbody>
@@ -202,50 +309,48 @@ export function exportLesson5512ToWord(plan: LessonPlan5512) {
     })
     .join('');
 
-  const html = `
-    <h2 style="text-align:center;text-transform:uppercase;">KẾ HOẠCH BÀI DẠY CHUẨN CÔNG VĂN 5512</h2>
-    <h3 style="text-align:center;">${formatCompetencyColorsForWord(plan.lessonTitle)}</h3>
-    <p style="text-align:center;"><b>Môn học:</b> ${plan.subject} — <b>Lớp:</b> ${plan.grade} — <b>Thời lượng:</b> ${plan.duration}</p>
-    <hr/>
-    <p><b>Quy ước Mã màu Năng lực tích hợp:</b>
-      <span style="color:#1d4ed8;background-color:#dbeafe;font-weight:bold;padding:2pt 4pt;">[NLS: Năng lực số - Xanh dương]</span> |
-      <span style="color:#b91c1c;background-color:#fee2e2;font-weight:bold;padding:2pt 4pt;">[NLAI: Năng lực AI - Đỏ]</span> |
-      <span style="color:#b45309;background-color:#fef3c7;font-weight:bold;padding:2pt 4pt;">[THLM: Tích hợp liên môn - Vàng]</span>
-    </p>
+  return `
+    <h2 style="text-align:center;text-transform:uppercase;">KẾ HOẠCH BÀI DẠY</h2>
+    <h3 style="text-align:center;text-transform:uppercase;">${escapeHtml(plan.lessonTitle)}</h3>
+    <p style="text-align:center;"><b>Môn học:</b> ${escapeHtml(plan.subject)} — <b>Lớp:</b> ${escapeHtml(plan.grade)}</p>
 
-    <h3>I. MỤC TIÊU BÀI HỌC</h3>
+    <h3>I. MỤC TIÊU</h3>
     <p><b>1. Về kiến thức:</b></p>
-    ${plan.knowledgeObjectives.map((k) => `<p>- ${formatCompetencyColorsForWord(k)}</p>`).join('')}
+    ${plan.knowledgeObjectives.map((k) => `<p>- ${formatLineWithCompetencyColorHtml(k)}</p>`).join('')}
     <p><b>2. Về năng lực:</b></p>
-    <p><i>* Năng lực chung:</i></p>
-    ${plan.generalCompetencies.map((g) => `<p>- ${formatCompetencyColorsForWord(g)}</p>`).join('')}
-    <p><i>* Năng lực đặc thù môn ${plan.subject}:</i></p>
-    ${plan.specificCompetencies.map((s) => `<p>- ${formatCompetencyColorsForWord(s)}</p>`).join('')}
-    <p><i>* Hệ thống Năng lực Số, AI & Tích hợp liên môn:</i></p>
-    <p>- ${formatCompetencyColorsForWord(plan.digitalCompetencyNLS)}</p>
-    <p>- ${formatCompetencyColorsForWord(plan.aiCompetencyNLAI)}</p>
-    <p>- ${formatCompetencyColorsForWord(plan.interdisciplinaryTHLM)}</p>
+    ${plan.generalCompetencies.map((g) => `<p>- ${formatLineWithCompetencyColorHtml(g)}</p>`).join('')}
+    ${plan.specificCompetencies.map((s) => `<p>- ${formatLineWithCompetencyColorHtml(s)}</p>`).join('')}
+    <p>- ${formatLineWithCompetencyColorHtml(plan.digitalCompetencyNLS, 'NLS')}</p>
+    <p>- ${formatLineWithCompetencyColorHtml(plan.aiCompetencyNLAI, 'NLAI')}</p>
+    <p>- ${formatLineWithCompetencyColorHtml(plan.interdisciplinaryTHLM, 'THLM')}</p>
     <p><b>3. Về phẩm chất:</b></p>
-    ${plan.qualities.map((q) => `<p>- ${formatCompetencyColorsForWord(q)}</p>`).join('')}
+    ${plan.qualities.map((q) => `<p>- ${formatLineWithCompetencyColorHtml(q)}</p>`).join('')}
 
     <h3>II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU</h3>
     <p><b>1. Đối với giáo viên:</b></p>
-    ${plan.teacherEquipment.map((t) => `<p>- ${formatCompetencyColorsForWord(t)}</p>`).join('')}
+    ${plan.teacherEquipment.map((t) => `<p>- ${formatLineWithCompetencyColorHtml(t)}</p>`).join('')}
     <p><b>2. Đối với học sinh:</b></p>
-    ${plan.studentEquipment.map((s) => `<p>- ${formatCompetencyColorsForWord(s)}</p>`).join('')}
+    ${plan.studentEquipment.map((s) => `<p>- ${formatLineWithCompetencyColorHtml(s)}</p>`).join('')}
 
-    <h3>III. TIẾN TRÌNH DẠY HỌC (4 HOẠT ĐỘNG CHUẨN 5512)</h3>
+    <h3>III. TIẾN TRÌNH DẠY HỌC</h3>
     ${activitiesHtml}
   `;
-
-  downloadWordDocument(html, `Giao_An_5512_${plan.subject}_${plan.grade}.doc`);
 }
 
-/**
- * Module 5 & 7: Export 3-Part Exam + Matrix + Underlined Standard Key to Word
- * STRICT RULE: Only underline the correct letter (A, B, C, D / a, b, c, d), zero redundant labels!
- */
-export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlineCorrectKey: boolean = true) {
+export function exportLesson5512ToWord(plan: LessonPlan5512) {
+  const html = buildLesson5512HtmlBody(plan);
+  downloadWordDocument(html, `Ke_Hoach_Bai_Day_${plan.subject}_${plan.grade}.doc`);
+}
+
+export function exportLesson5512ToHtml(plan: LessonPlan5512) {
+  const html = buildLesson5512HtmlBody(plan);
+  downloadHtmlDocumentWithExactColors(html, `Ke_Hoach_Bai_Day_${plan.subject}_${plan.grade}.html`);
+}
+
+export function buildExamHtmlBody(
+  exam: DifferentiatedExamPackage,
+  underlineCorrectKey: boolean = true
+): string {
   const part1Html = exam.part1
     .map((q) => {
       const optsHtml = q.options
@@ -254,11 +359,11 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
             underlineCorrectKey && opt.isCorrect
               ? `<u><b>${opt.letter}</b></u>`
               : `<b>${opt.letter}</b>`;
-          return `<p>${letterRender}. ${formatCompetencyColorsForWord(opt.text)}</p>`;
+          return `<p>${letterRender}. ${formatLineWithCompetencyColorHtml(opt.text)}</p>`;
         })
         .join('');
       return `
-        <p><b>Câu ${q.number} (${q.bloomLevel}):</b> ${formatCompetencyColorsForWord(q.stem)}</p>
+        <p><b>Câu ${q.number}:</b> ${formatLineWithCompetencyColorHtml(q.stem)}</p>
         ${optsHtml}
       `;
     })
@@ -268,16 +373,15 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
     .map((q) => {
       const stmtsHtml = q.statements
         .map((st) => {
-          // Rule: Underline letter (a, b, c, d) if statement is True when exporting underlined key
           const letterRender =
             underlineCorrectKey && st.isTrue
               ? `<u><b>${st.letter}</b></u>`
               : `<b>${st.letter}</b>`;
-          return `<p>${letterRender}) ${formatCompetencyColorsForWord(st.text)}</p>`;
+          return `<p>${letterRender}) ${formatLineWithCompetencyColorHtml(st.text)}</p>`;
         })
         .join('');
       return `
-        <p><b>Câu ${q.number}:</b> ${formatCompetencyColorsForWord(q.contextStem)}</p>
+        <p><b>Câu ${q.number}:</b> ${formatLineWithCompetencyColorHtml(q.contextStem)}</p>
         ${stmtsHtml}
       `;
     })
@@ -286,10 +390,10 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
   const part3Html = exam.part3
     .map((q) => {
       return `
-        <p><b>Câu ${q.number} (${q.bloomLevel}):</b> ${formatCompetencyColorsForWord(q.stem)}</p>
+        <p><b>Câu ${q.number}:</b> ${formatLineWithCompetencyColorHtml(q.stem)}</p>
         ${
           underlineCorrectKey
-            ? `<p><u><b>${q.correctAnswer}</b></u> (${q.unitOrNote})</p>`
+            ? `<p><u><b>${escapeHtml(q.correctAnswer)}</b></u></p>`
             : `<p>Đáp số: ............................</p>`
         }
       `;
@@ -301,9 +405,9 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
       (row) => `
       <tr>
         <td style="text-align:center;">${row.topicNumber}</td>
-        <td>${row.topicName}</td>
-        <td>${row.contentUnit}</td>
-        <td>${row.learningOutcomeSpec.replace(/\n/g, '<br/>')}</td>
+        <td>${escapeHtml(row.topicName)}</td>
+        <td>${escapeHtml(row.contentUnit)}</td>
+        <td>${escapeHtml(row.learningOutcomeSpec).replace(/\n/g, '<br/>')}</td>
         <td style="text-align:center;">${row.part1Counts.biet}/${row.part1Counts.hieu}/${row.part1Counts.vanDung}/${row.part1Counts.vanDungCao}</td>
         <td style="text-align:center;">${row.part2Counts.biet}/${row.part2Counts.hieu}/${row.part2Counts.vanDung}/${row.part2Counts.vanDungCao}</td>
         <td style="text-align:center;">${row.part3Counts.biet}/${row.part3Counts.hieu}/${row.part3Counts.vanDung}/${row.part3Counts.vanDungCao}</td>
@@ -313,35 +417,32 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
     )
     .join('');
 
-  const html = `
-    <h2 style="text-align:center;">${exam.examTitle}</h2>
-    <p style="text-align:center;"><b>Môn:</b> ${exam.subject} — <b>${exam.grade}</b> | <b>Thời gian:</b> ${exam.durationMinutes} phút | <b>Mã đề:</b> ${exam.examCode}</p>
+  return `
+    <h2 style="text-align:center;">${escapeHtml(exam.examTitle)}</h2>
+    <p style="text-align:center;"><b>Môn:</b> ${escapeHtml(exam.subject)} — <b>${escapeHtml(exam.grade)}</b> | <b>Mã đề:</b> ${escapeHtml(exam.examCode)}</p>
     <hr/>
 
     <h3>PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn</h3>
-    <p><i>Thí sinh trả lời từ câu 1 đến câu ${exam.part1.length}. Mỗi câu hỏi thí sinh chỉ chọn một phương án.</i></p>
     ${part1Html}
 
     <h3>PHẦN II. Câu trắc nghiệm đúng sai</h3>
-    <p><i>Thí sinh trả lời từ câu 1 đến câu ${exam.part2.length}. Trong mỗi ý a), b), c), d) ở mỗi câu, thí sinh chọn đúng hoặc sai (Chữ cái gạch chân là mệnh đề Đúng).</i></p>
     ${part2Html}
 
     <h3>PHẦN III. Câu trắc nghiệm trả lời ngắn</h3>
-    <p><i>Thí sinh trả lời từ câu 1 đến câu ${exam.part3.length}.</i></p>
     ${part3Html}
 
     <hr/>
-    <h3>BẢNG MA TRẬN & ĐẶC TẢ ĐỀ KIỂM TRA ĐÁNH GIÁ</h3>
+    <h3>BẢNG MA TRẬN VÀ ĐẶC TẢ ĐỀ KIỂM TRA</h3>
     <table>
       <thead>
         <tr>
           <th>TT</th>
           <th>Chủ đề / Bài học</th>
           <th>Đơn vị kiến thức</th>
-          <th>Mức độ đánh giá</th>
-          <th>Phần I (B/H/VD/VDC)</th>
-          <th>Phần II (B/H/VD/VDC)</th>
-          <th>Phần III (B/H/VD/VDC)</th>
+          <th>Yêu cầu cần đạt</th>
+          <th>Phần I</th>
+          <th>Phần II</th>
+          <th>Phần III</th>
           <th>Tỷ lệ %</th>
         </tr>
       </thead>
@@ -350,39 +451,50 @@ export function exportExamAndKeyToWord(exam: DifferentiatedExamPackage, underlin
       </tbody>
     </table>
   `;
-
-  const suffix = underlineCorrectKey ? 'Kem_Dap_An_Gach_Chan' : 'De_Thi';
-  downloadWordDocument(html, `De_Khao_Thi_3_Phan_${suffix}.doc`);
 }
 
-/**
- * Module 10: Export Scaffolding Worksheet to Word
- */
+export function exportExamAndKeyToWord(
+  exam: DifferentiatedExamPackage,
+  underlineCorrectKey: boolean = true
+) {
+  const html = buildExamHtmlBody(exam, underlineCorrectKey);
+  const suffix = underlineCorrectKey ? 'Kem_Dap_An_Gach_Chan' : 'De_Chinh_Thuc';
+  downloadWordDocument(html, `De_Kiem_Tra_${suffix}.doc`);
+}
+
+export function exportExamAndKeyToHtml(
+  exam: DifferentiatedExamPackage,
+  underlineCorrectKey: boolean = true
+) {
+  const html = buildExamHtmlBody(exam, underlineCorrectKey);
+  downloadHtmlDocumentWithExactColors(html, `De_Kiem_Tra_Chuan_12pt.html`);
+}
+
 export function exportWorksheetToWord(pkg: WorksheetAndGamePackage) {
   const tasksHtml = pkg.tasks
     .map(
       (t) => `
-      <h3>${t.taskTitle} [${t.competencyTag}]</h3>
-      <p><i>Hướng dẫn: ${formatCompetencyColorsForWord(t.instructions)}</i></p>
-      ${t.promptsWithBlanks.map((line) => `<p>${formatCompetencyColorsForWord(line)}</p>`).join('')}
+      <h3>${escapeHtml(t.taskTitle)}</h3>
+      <p><i>${formatLineWithCompetencyColorHtml(t.instructions, t.competencyTag)}</i></p>
+      ${t.promptsWithBlanks.map((line) => `<p>${formatLineWithCompetencyColorHtml(line)}</p>`).join('')}
     `
     )
     .join('');
 
   const html = `
-    <h2 style="text-align:center;">${pkg.worksheetTitle}</h2>
-    <p style="text-align:center;"><b>${pkg.studentGroupGuide}</b></p>
+    <h2 style="text-align:center;">${escapeHtml(pkg.worksheetTitle)}</h2>
+    <p style="text-align:center;"><b>${escapeHtml(pkg.studentGroupGuide)}</b></p>
     <hr/>
     ${tasksHtml}
   `;
 
-  downloadWordDocument(html, `Phieu_Hoc_Tap_Scaffolding.doc`);
+  downloadWordDocument(html, `Phieu_Hoc_Tap_12pt.doc`);
 }
 
-/**
- * Module 8: Lazy-Load PptxGenJS on demand and export .pptx with Speaker Notes
- */
-export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: string): Promise<void> {
+export async function exportSlidesToPptx(
+  slides: SlideItem[],
+  lessonTitle: string
+): Promise<void> {
   const PPTX_CDN = 'https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
   const win = window as unknown as { PptxGenJS?: new () => unknown };
 
@@ -397,14 +509,13 @@ export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: strin
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pptx: any = new win.PptxGenJS();
   pptx.layout = 'LAYOUT_16x9';
-  pptx.author = 'AutoTyper Studio Pro v3.0';
-  pptx.title = lessonTitle;
+  pptx.author = 'Hồ Tấn Khải - Auto Typer Studio Pro v3.0';
+  pptx.title = cleanPedagogyText(lessonTitle);
 
   slides.forEach((item) => {
     const slide = pptx.addSlide();
     slide.background = { color: '0F172A' };
 
-    // Accent bar color based on Competency
     const badgeColor =
       item.competencyHighlight === 'NLS'
         ? '2563EB'
@@ -412,7 +523,6 @@ export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: strin
         ? 'DC2626'
         : 'D97706';
 
-    // Top bar
     slide.addShape(pptx.ShapeType.rect, {
       x: 0,
       y: 0,
@@ -421,62 +531,54 @@ export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: strin
       fill: { color: badgeColor },
     });
 
-    // Slide number & Competency label
-    slide.addText(
-      `SLIDE ${item.slideNumber}  |  ${item.competencyHighlight || '5512 STANDARD'}`,
-      {
-        x: 0.6,
-        y: 0.35,
-        w: 8.8,
-        h: 0.35,
-        fontSize: 11,
-        bold: true,
-        color: '38BDF8',
-        fontFace: 'Arial',
-      }
-    );
-
-    // Title
-    slide.addText(item.title, {
+    slide.addText(cleanPedagogyText(item.title), {
       x: 0.6,
-      y: 0.75,
+      y: 0.55,
       w: 8.8,
       h: 0.7,
       fontSize: 22,
       bold: true,
       color: 'FFFFFF',
-      fontFace: 'Arial',
+      fontFace: 'Times New Roman',
     });
 
-    // Subtitle
-    slide.addText(item.subtitle, {
+    slide.addText(cleanPedagogyText(item.subtitle), {
       x: 0.6,
-      y: 1.45,
+      y: 1.25,
       w: 8.8,
       h: 0.4,
-      fontSize: 13,
+      fontSize: 14,
       italic: true,
       color: '94A3B8',
-      fontFace: 'Arial',
+      fontFace: 'Times New Roman',
     });
 
-    // Bullets
-    const bulletTextObjs = item.bullets.map((b) => ({
-      text: b,
-      options: { bullet: true, color: 'E2E8F0', fontSize: 14, breakLine: true },
-    }));
+    const bulletTextObjs = item.bullets.map((b) => {
+      const cType = detectCompetencyTypeFromText(b);
+      const colorHex =
+        cType === 'NLS'
+          ? '60A5FA'
+          : cType === 'NLAI'
+          ? 'F87171'
+          : cType === 'THLM'
+          ? 'FBBF24'
+          : 'F8FAFC';
+      return {
+        text: cleanPedagogyText(b),
+        options: { bullet: true, color: colorHex, fontSize: 14, breakLine: true },
+      };
+    });
 
     slide.addText(bulletTextObjs, {
       x: 0.6,
-      y: 2.0,
+      y: 1.85,
       w: 8.8,
-      h: item.interactiveQuestion ? 2.1 : 2.9,
-      fontFace: 'Arial',
+      h: item.interactiveQuestion ? 2.2 : 3.0,
+      fontFace: 'Times New Roman',
       valign: 'top',
       lineSpacing: 22,
     });
 
-    // Interactive Question Box if present
     if (item.interactiveQuestion) {
       slide.addShape(pptx.ShapeType.roundRect, {
         x: 0.6,
@@ -486,7 +588,7 @@ export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: strin
         fill: { color: '1E293B' },
         line: { color: '38BDF8', width: 1.5 },
       });
-      slide.addText(`Câu hỏi tương tác: ${item.interactiveQuestion}`, {
+      slide.addText(`Câu hỏi thảo luận: ${cleanPedagogyText(item.interactiveQuestion)}`, {
         x: 0.8,
         y: 4.35,
         w: 8.4,
@@ -494,16 +596,17 @@ export async function exportSlidesToPptx(slides: SlideItem[], lessonTitle: strin
         fontSize: 13,
         bold: true,
         color: '38BDF8',
-        fontFace: 'Arial',
+        fontFace: 'Times New Roman',
       });
     }
 
-    // Add Teacher Speaker Notes on every slide
     if (item.speakerNotes) {
-      slide.addNotes(item.speakerNotes);
+      slide.addNotes(cleanPedagogyText(item.speakerNotes));
     }
   });
 
-  const safeName = lessonTitle.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 35) || 'Bai_Giang';
-  await pptx.writeFile({ fileName: `Slide_5512_${safeName}.pptx` });
+  const safeName =
+    cleanPedagogyText(lessonTitle).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 35) ||
+    'Bai_Giang';
+  await pptx.writeFile({ fileName: `Slide_${safeName}.pptx` });
 }

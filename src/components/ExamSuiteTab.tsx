@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   CheckSquare,
   ShieldAlert,
@@ -8,10 +8,23 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  Wand2
+  Wand2,
+  Plus,
+  Upload,
+  Edit3,
+  Trash2,
+  FileCode2,
 } from 'lucide-react';
-import { DifferentiatedExamPackage } from '../types/pedagogyTypes';
-import { exportExamAndKeyToWord } from '../utils/exportHelpers';
+import {
+  DifferentiatedExamPackage,
+  MultipleChoiceQuestion,
+} from '../types/pedagogyTypes';
+import {
+  exportExamAndKeyToWord,
+  exportExamAndKeyToHtml,
+  detectCompetencyTypeFromText,
+} from '../utils/exportHelpers';
+import { cleanPedagogyText } from '../data/pedagogyPresets';
 import { runAdversarialAuditInWorker } from '../utils/pedagogyWorkerRunner';
 
 interface ExamSuiteTabProps {
@@ -34,6 +47,17 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
   const [activeSubView, setActiveSubView] = useState<'exam_key' | 'audit' | 'matrix'>('exam_key');
   const [underlineKeyMode, setUnderlineKeyMode] = useState<boolean>(true);
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const getCompetencyColorClass = (text: string) => {
+    const cleaned = cleanPedagogyText(text);
+    const kind = detectCompetencyTypeFromText(cleaned);
+    if (kind === 'NLS') return 'text-[#60a5fa] font-semibold';
+    if (kind === 'NLAI') return 'text-[#f87171] font-semibold';
+    if (kind === 'THLM') return 'text-[#fbbf24] font-semibold';
+    return 'text-zinc-100';
+  };
 
   const handleRunWorkerAudit = async () => {
     setIsAuditing(true);
@@ -44,12 +68,11 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
     });
     setIsAuditing(false);
     onLog(
-      `Web Worker đã hoàn tất Thanh tra Phản biện đề thi: Điểm chất lượng ${report.overallQualityScore}/100`,
+      `Đã hoàn tất Thanh tra Phản biện đề thi: Điểm chất lượng ${report.overallQualityScore}/100`,
       'engine'
     );
   };
 
-  // Auto-optimize distractors to fix length bias or extreme words
   const handleAutoOptimizeDistractors = async () => {
     setIsAuditing(true);
     const optimizedPart1 = examPackage.part1.map((q) => {
@@ -77,127 +100,261 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
     });
     setIsAuditing(false);
     onLog(
-      `Đã tối ưu hóa độ nhiễu phương án sai qua Web Worker -> Điểm chất lượng mới: ${newReport.overallQualityScore}/100`,
+      `Đã tối ưu hóa độ nhiễu phương án sai -> Điểm chất lượng mới: ${newReport.overallQualityScore}/100`,
       'engine'
     );
   };
 
+  // Add new question to Part I
+  const handleAddQuestion = () => {
+    const nextNum = examPackage.part1.length + 1;
+    const newQ: MultipleChoiceQuestion = {
+      id: `p1-q${Date.now()}`,
+      number: nextNum,
+      bloomLevel: 'Vận dụng',
+      stem: `Câu hỏi vận dụng bổ sung số ${nextNum}: Khai thác phần mềm mô phỏng số và đối chiếu dữ liệu thực nghiệm của bài học.`,
+      options: [
+        { letter: 'A', text: 'Phương án đúng phản ánh quy luật biến thiên thực nghiệm.', isCorrect: true },
+        { letter: 'B', text: 'Phương án nhiễu số 1 có cùng độ dài và cấu trúc ngữ pháp.', isCorrect: false },
+        { letter: 'C', text: 'Phương án nhiễu số 2 kiểm tra khả năng phân biệt khái niệm.', isCorrect: false },
+        { letter: 'D', text: 'Phương án nhiễu số 3 kiểm tra kỹ năng suy luận định lượng.', isCorrect: false },
+      ],
+      explanation: 'Giải thích đáp án chuẩn.',
+    };
+    onUpdateExam({
+      ...examPackage,
+      part1: [...examPackage.part1, newQ],
+    });
+    setIsEditing(true);
+    onLog(`Đã thêm Câu ${nextNum} vào Đề thi.`, 'info');
+  };
+
+  const handleDeletePart1Question = (idx: number) => {
+    if (examPackage.part1.length <= 1) {
+      onLog('Cần giữ lại ít nhất 1 câu hỏi trong Phần I.', 'warning');
+      return;
+    }
+    const nextPart1 = examPackage.part1
+      .filter((_, i) => i !== idx)
+      .map((q, i) => ({ ...q, number: i + 1 }));
+    onUpdateExam({ ...examPackage, part1: nextPart1 });
+    onLog('Đã xóa câu hỏi khỏi Phần I.', 'warning');
+  };
+
+  const handleClearOrResetExam = () => {
+    onRegenerate();
+    onLog('Đã làm mới đề kiểm tra.', 'info');
+  };
+
+  const handleUploadExamFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed && parsed.part1 && parsed.part2) {
+          onUpdateExam(parsed);
+          onLog(`Đã tải lên gói đề thi JSON "${file.name}" thành công!`, 'info');
+          e.target.value = '';
+          return;
+        }
+      } catch {
+        // Plain text import -> create a question from uploaded text
+      }
+      const lines = text
+        .split('\n')
+        .map((l) => cleanPedagogyText(l))
+        .filter(Boolean);
+      if (lines.length > 0) {
+        const nextNum = examPackage.part1.length + 1;
+        const importedQ: MultipleChoiceQuestion = {
+          id: `p1-import-${Date.now()}`,
+          number: nextNum,
+          bloomLevel: 'Thông hiểu',
+          stem: lines[0],
+          options: [
+            { letter: 'A', text: lines[1] || 'Phương án A (Đúng)', isCorrect: true },
+            { letter: 'B', text: lines[2] || 'Phương án B', isCorrect: false },
+            { letter: 'C', text: lines[3] || 'Phương án C', isCorrect: false },
+            { letter: 'D', text: lines[4] || 'Phương án D', isCorrect: false },
+          ],
+          explanation: 'Nhập từ tệp tải lên.',
+        };
+        onUpdateExam({
+          ...examPackage,
+          part1: [...examPackage.part1, importedQ],
+        });
+        setIsEditing(true);
+        onLog(`Đã tải lên tệp "${file.name}" và thêm vào Đề thi để chỉnh sửa!`, 'info');
+      }
+    } catch {
+      onLog('Không thể đọc tệp đề thi tải lên.', 'warning');
+    }
+    e.target.value = '';
+  };
+
   const handleSendExamToTyper = () => {
     const lines: string[] = [
-      examPackage.examTitle,
-      `Môn: ${examPackage.subject} - ${examPackage.grade} | Thời gian: ${examPackage.durationMinutes} phút | Mã đề: ${examPackage.examCode}`,
+      cleanPedagogyText(examPackage.examTitle),
+      `Môn: ${examPackage.subject} - ${examPackage.grade} | Mã đề: ${examPackage.examCode}`,
       ``,
       `PHẦN I. TRẮC NGHIỆM 4 LỰA CHỌN`,
       ...examPackage.part1.flatMap((q) => [
-        `Câu ${q.number}. ${q.stem}`,
-        ...q.options.map((o) => `  ${o.letter}. ${o.text}`),
+        `Câu ${q.number}. ${cleanPedagogyText(q.stem)}`,
+        ...q.options.map((o) => `  ${o.letter}. ${cleanPedagogyText(o.text)}`),
       ]),
       ``,
-      `PHẦN II. TRẮC NGHIỆM ĐÚNG/SAI (4 Ý a, b, c, d)`,
+      `PHẦN II. TRẮC NGHIỆM ĐÚNG/SAI`,
       ...examPackage.part2.flatMap((q) => [
-        `Câu ${q.number}. ${q.contextStem}`,
-        ...q.statements.map((s) => `  ${s.letter}) ${s.text}`),
+        `Câu ${q.number}. ${cleanPedagogyText(q.contextStem)}`,
+        ...q.statements.map((s) => `  ${s.letter}) ${cleanPedagogyText(s.text)}`),
       ]),
       ``,
       `PHẦN III. TRẢ LỜI NGẮN`,
-      ...examPackage.part3.map((q) => `Câu ${q.number}. ${q.stem} => ${q.correctAnswer}`),
+      ...examPackage.part3.map(
+        (q) => `Câu ${q.number}. ${cleanPedagogyText(q.stem)} => ${q.correctAnswer}`
+      ),
     ];
     onSendToTyper(lines.join('\n'));
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Header & Sub-Navigation for Modules 5, 6, 7 */}
-      <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400 mb-1">
-            <span>Phân hệ 05 · 06 · 07</span>
-            <span aria-hidden="true">·</span>
-            <span>Đề Thi 3 Phần Mới</span>
-            <span aria-hidden="true">·</span>
-            <span>Adversarial Audit</span>
-            <span aria-hidden="true">·</span>
-            <span>Đáp Án Gạch Chân & Ma Trận</span>
+      {/* Top 3D Action Toolbar: Thêm, Tải lên, Chỉnh sửa, Xóa, Tải về */}
+      <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-amber-400 flex flex-col gap-4 shadow-xl">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-lg sm:text-xl font-extrabold text-white">
+              {cleanPedagogyText(examPackage.examTitle)}
+            </h2>
+            <p className="text-xs font-semibold text-amber-300 mt-1">
+              Môn: {examPackage.subject} · {examPackage.grade} · Mã đề: {examPackage.examCode} · Font: Times New Roman 12pt
+            </p>
           </div>
-          <h2 className="text-lg font-bold text-white">{examPackage.examTitle}</h2>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={onRegenerate}
-            disabled={isGenerating}
-            className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5 transition-colors disabled:opacity-50"
-          >
-            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>{isGenerating ? 'Đang sinh đề...' : 'Sinh Đề Mới (On-Demand)'}</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.json,.doc,.docx,.md"
+              onChange={handleUploadExamFile}
+              className="hidden"
+            />
 
-          <button
-            onClick={handleSendExamToTyper}
-            className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-cyan-300 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5 transition-colors"
-          >
-            <span>Gõ trên AutoTyper</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+            <button
+              onClick={handleAddQuestion}
+              className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Thêm Câu Hỏi</span>
+            </button>
 
-          <button
-            onClick={() => {
-              exportExamAndKeyToWord(examPackage, true);
-              onLog('Đã xuất file Word Đề thi kèm Đáp án gạch chân chuẩn Module 7', 'info');
-            }}
-            className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow flex items-center gap-1.5 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            <span>Xuất Word (.docx) Đáp Án Gạch Chân</span>
-          </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Tải Lên</span>
+            </button>
+
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+                isEditing ? 'btn-3d-amber' : 'btn-3d-indigo'
+              }`}
+            >
+              <Edit3 className="w-4 h-4" />
+              <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+            </button>
+
+            <button
+              onClick={handleClearOrResetExam}
+              disabled={isGenerating}
+              className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Xóa / Tạo Lại</span>
+            </button>
+
+            <button
+              onClick={onRegenerate}
+              disabled={isGenerating}
+              className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>{isGenerating ? 'Đang sinh đề...' : 'Sinh Đề Mới'}</span>
+            </button>
+
+            <button
+              onClick={handleSendExamToTyper}
+              className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <span>Gõ AutoTyper</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              onClick={() => {
+                exportExamAndKeyToWord(examPackage, true);
+                onLog('Đã tải về Đề thi Word (.doc) Times New Roman 12pt kèm Đáp án gạch chân.', 'info');
+              }}
+              className="btn-3d btn-3d-cyan px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <Download className="w-4 h-4" />
+              <span>Tải Về (.DOC 12pt)</span>
+            </button>
+
+            <button
+              onClick={() => {
+                exportExamAndKeyToHtml(examPackage, true);
+                onLog('Đã tải về Đề thi (.html) giữ nguyên 100% mã màu và kích thước 12pt.', 'info');
+              }}
+              className="btn-3d btn-3d-amber px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+            >
+              <FileCode2 className="w-4 h-4" />
+              <span>Tải Bản In (.HTML)</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Sub-module Segmented Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-3 rounded-xl bg-zinc-900/80 border border-zinc-800">
-        <div className="flex items-center gap-1 p-1 bg-zinc-950 rounded-lg border border-zinc-800">
+      {/* 3D Sub-navigation Selector */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-3.5 rounded-2xl bg-zinc-900 border-2 border-sky-400">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveSubView('exam_key')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubView === 'exam_key'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubView === 'exam_key' ? 'btn-3d-cyan' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <CheckSquare className="w-4 h-4 text-cyan-400" />
-            <span>05 & 07. Đề Thi 3 Phần & Đáp Án Gạch Chân</span>
+            <CheckSquare className="w-4 h-4" />
+            <span>Đề Thi 3 Phần & Đáp Án Gạch Chân</span>
           </button>
 
           <button
             onClick={() => setActiveSubView('audit')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubView === 'audit'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubView === 'audit' ? 'btn-3d-amber' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <ShieldAlert className="w-4 h-4 text-amber-400" />
-            <span>
-              06. Thanh Tra Phản Biện & Bẫy Nhiễu ({examPackage.auditReport.overallQualityScore}/100)
-            </span>
+            <ShieldAlert className="w-4 h-4" />
+            <span>Thanh Tra Phản Biện ({examPackage.auditReport.overallQualityScore}/100)</span>
           </button>
 
           <button
             onClick={() => setActiveSubView('matrix')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubView === 'matrix'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubView === 'matrix' ? 'btn-3d-emerald' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <Table2 className="w-4 h-4 text-emerald-400" />
-            <span>07. Ma Trận & Bảng Đặc Tả Khảo Thí</span>
+            <Table2 className="w-4 h-4" />
+            <span>Ma Trận & Bảng Đặc Tả</span>
           </button>
         </div>
 
-        {/* Strict Underline Rule Toggle */}
         {activeSubView === 'exam_key' && (
-          <label className="flex items-center gap-2 text-xs text-zinc-300 cursor-pointer px-3 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800">
+          <label className="flex items-center gap-2 text-xs text-zinc-200 cursor-pointer px-3.5 py-2 rounded-xl bg-slate-950 border border-sky-500/50">
             <input
               type="checkbox"
               checked={underlineKeyMode}
@@ -205,75 +362,123 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
               className="rounded bg-zinc-900 border-zinc-700 text-cyan-500"
             />
             <span>
-              Quy chuẩn Đáp án chuẩn: <b>Chỉ gạch chân chữ cái đúng (<u>A</u>, <u>B</u>, <u>C</u>, <u>D</u> / <u>a</u>, <u>b</u>, <u>c</u>, <u>d</u>)</b>, không nhãn thừa
+              Đáp án gạch chân: <b><u>A</u>, <u>B</u>, <u>C</u>, <u>D</u> / <u>a</u>, <u>b</u>, <u>c</u>, <u>d</u></b>
             </span>
           </label>
         )}
       </div>
 
-      {/* VIEW 1: 3-PART EXAM & UNDERLINED KEY */}
+      {/* VIEW 1: 3-PART EXAM & UNDERLINED KEY (STRICT 12PT TIMES NEW ROMAN) */}
       {activeSubView === 'exam_key' && (
-        <div className="space-y-6">
-          {/* PART I: 4-Option Multiple Choice */}
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-5">
+        <div className="space-y-6 doc-times-12pt">
+          {/* PART I */}
+          <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-sky-400 space-y-5">
             <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">
-                  PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn (4 phương án A, B, C, D)
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Phân hóa 4 mức độ nhận thức: Nhận biết · Thông hiểu · Vận dụng · Vận dụng cao
-                </p>
-              </div>
-              <span className="text-xs text-zinc-400 font-mono">
-                {examPackage.part1.length} câu hỏi
-              </span>
+              <h3 className="font-bold text-white uppercase">
+                PHẦN I. Câu trắc nghiệm nhiều phương án lựa chọn
+              </h3>
+              <button
+                onClick={handleAddQuestion}
+                className="btn-3d btn-3d-emerald px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1 font-sans"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Thêm câu Phần I</span>
+              </button>
             </div>
 
             <div className="space-y-5">
-              {examPackage.part1.map((q) => (
+              {examPackage.part1.map((q, qIdx) => (
                 <div
                   key={q.id}
                   className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3"
                 >
-                  <div className="flex items-center justify-between text-xs text-zinc-400">
-                    <span className="font-bold text-cyan-400">
-                      Câu {q.number} · Mức độ: {q.bloomLevel}
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-cyan-300">
+                      Câu {q.number} ({q.bloomLevel})
                     </span>
-                    {q.competencyTag && (
-                      <span className="font-mono text-zinc-400">
-                        Năng lực: [{q.competencyTag}]
-                      </span>
-                    )}
+                    <button
+                      onClick={() => handleDeletePart1Question(qIdx)}
+                      className="btn-3d btn-3d-rose px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 font-sans"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Xóa</span>
+                    </button>
                   </div>
 
-                  <p className="text-sm font-semibold text-zinc-100 leading-relaxed text-justify">
-                    {q.stem}
-                  </p>
+                  {isEditing ? (
+                    <textarea
+                      value={cleanPedagogyText(q.stem)}
+                      onChange={(e) => {
+                        const next = [...examPackage.part1];
+                        next[qIdx] = { ...q, stem: e.target.value };
+                        onUpdateExam({ ...examPackage, part1: next });
+                      }}
+                      rows={2}
+                      className="w-full p-2.5 rounded-lg bg-slate-900 border border-cyan-500 text-white"
+                    />
+                  ) : (
+                    <p className={`text-justify font-semibold ${getCompetencyColorClass(q.stem)}`}>
+                      {cleanPedagogyText(q.stem)}
+                    </p>
+                  )}
 
-                  {/* Options with strict underlined letter only */}
                   <div className="grid grid-cols-1 gap-2 pl-2">
-                    {q.options.map((opt) => {
+                    {q.options.map((opt, oIdx) => {
                       const isUnderlined = underlineKeyMode && opt.isCorrect;
                       return (
                         <div
                           key={opt.letter}
-                          className={`p-2.5 rounded-lg border text-sm leading-relaxed transition-colors ${
+                          className={`p-2.5 rounded-lg border transition-colors ${
                             isUnderlined
-                              ? 'bg-emerald-950/20 border-emerald-500/40 text-zinc-100'
-                              : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-300'
+                              ? 'bg-emerald-950/25 border-emerald-500/50 text-zinc-100'
+                              : 'bg-zinc-900/60 border-zinc-800/80 text-zinc-200'
                           }`}
                         >
-                          <span
-                            className={
-                              isUnderlined
-                                ? 'underline decoration-2 underline-offset-4 font-black text-emerald-400 mr-1.5'
-                                : 'font-bold text-zinc-300 mr-1.5'
-                            }
-                          >
-                            {opt.letter}
-                          </span>
-                          <span>. {opt.text}</span>
+                          {isEditing ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="radio"
+                                checked={opt.isCorrect}
+                                onChange={() => {
+                                  const nextOpts = q.options.map((o, idx) => ({
+                                    ...o,
+                                    isCorrect: idx === oIdx,
+                                  }));
+                                  const nextPart1 = [...examPackage.part1];
+                                  nextPart1[qIdx] = { ...q, options: nextOpts };
+                                  onUpdateExam({ ...examPackage, part1: nextPart1 });
+                                }}
+                              />
+                              <span className="font-bold text-cyan-300">{opt.letter}.</span>
+                              <input
+                                type="text"
+                                value={cleanPedagogyText(opt.text)}
+                                onChange={(e) => {
+                                  const nextOpts = [...q.options];
+                                  nextOpts[oIdx] = { ...opt, text: e.target.value };
+                                  const nextPart1 = [...examPackage.part1];
+                                  nextPart1[qIdx] = { ...q, options: nextOpts };
+                                  onUpdateExam({ ...examPackage, part1: nextPart1 });
+                                }}
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white"
+                              />
+                            </div>
+                          ) : (
+                            <>
+                              <span
+                                className={
+                                  isUnderlined
+                                    ? 'underline decoration-2 underline-offset-4 font-bold text-emerald-400 mr-1.5'
+                                    : 'font-bold text-zinc-200 mr-1.5'
+                                }
+                              >
+                                {opt.letter}
+                              </span>
+                              <span className={getCompetencyColorClass(opt.text)}>
+                                . {cleanPedagogyText(opt.text)}
+                              </span>
+                            </>
+                          )}
                         </div>
                       );
                     })}
@@ -283,60 +488,93 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
             </div>
           </div>
 
-          {/* PART II: True/False 4-Statement Questions (a, b, c, d) */}
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-5">
+          {/* PART II */}
+          <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-purple-400 space-y-5">
             <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">
-                  PHẦN II. Câu trắc nghiệm Đúng / Sai (Mỗi câu gồm 4 ý a, b, c, d)
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Khi bật Đáp án chuẩn: Chỉ gạch chân trực tiếp chữ cái (<u>a</u>, <u>b</u>, <u>c</u>, <u>d</u>) của mệnh đề Đúng
-                </p>
-              </div>
-              <span className="text-xs text-zinc-400 font-mono">
-                {examPackage.part2.length} câu ({examPackage.part2.length * 4} mệnh đề)
-              </span>
+              <h3 className="font-bold text-white uppercase">
+                PHẦN II. Câu trắc nghiệm Đúng / Sai
+              </h3>
             </div>
 
             <div className="space-y-5">
-              {examPackage.part2.map((q) => (
+              {examPackage.part2.map((q, qIdx) => (
                 <div
                   key={q.id}
                   className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3"
                 >
-                  <p className="text-sm font-semibold text-zinc-100 leading-relaxed text-justify">
-                    <span className="text-cyan-400 font-bold mr-1.5">Câu {q.number}:</span>
-                    {q.contextStem}
-                  </p>
+                  {isEditing ? (
+                    <textarea
+                      value={cleanPedagogyText(q.contextStem)}
+                      onChange={(e) => {
+                        const next = [...examPackage.part2];
+                        next[qIdx] = { ...q, contextStem: e.target.value };
+                        onUpdateExam({ ...examPackage, part2: next });
+                      }}
+                      rows={2}
+                      className="w-full p-2.5 rounded-lg bg-slate-900 border border-purple-500 text-white"
+                    />
+                  ) : (
+                    <p className={`font-semibold text-justify ${getCompetencyColorClass(q.contextStem)}`}>
+                      <span className="text-cyan-400 font-bold mr-1.5">Câu {q.number}:</span>
+                      {cleanPedagogyText(q.contextStem)}
+                    </p>
+                  )}
 
                   <div className="space-y-2 pl-2">
-                    {q.statements.map((st) => {
+                    {q.statements.map((st, sIdx) => {
                       const isUnderlined = underlineKeyMode && st.isTrue;
                       return (
                         <div
                           key={st.letter}
-                          className={`p-3 rounded-lg border text-sm flex items-start justify-between gap-4 ${
+                          className={`p-3 rounded-lg border flex items-start justify-between gap-4 ${
                             isUnderlined
-                              ? 'bg-emerald-950/20 border-emerald-500/40 text-zinc-100'
-                              : 'bg-zinc-900/60 border-zinc-800 text-zinc-300'
+                              ? 'bg-emerald-950/25 border-emerald-500/50 text-zinc-100'
+                              : 'bg-zinc-900/60 border-zinc-800 text-zinc-200'
                           }`}
                         >
-                          <div className="leading-relaxed text-justify">
-                            <span
-                              className={
-                                isUnderlined
-                                  ? 'underline decoration-2 underline-offset-4 font-black text-emerald-400 mr-1.5'
-                                  : 'font-bold text-zinc-300 mr-1.5'
-                              }
-                            >
-                              {st.letter}
-                            </span>
-                            <span>) {st.text}</span>
-                          </div>
-                          <span className="text-xs text-zinc-500 whitespace-nowrap shrink-0 font-mono">
-                            {st.bloomLevel}
-                          </span>
+                          {isEditing ? (
+                            <div className="flex items-center gap-2 w-full">
+                              <input
+                                type="checkbox"
+                                checked={st.isTrue}
+                                onChange={(e) => {
+                                  const nextSt = [...q.statements];
+                                  nextSt[sIdx] = { ...st, isTrue: e.target.checked };
+                                  const nextPart2 = [...examPackage.part2];
+                                  nextPart2[qIdx] = { ...q, statements: nextSt };
+                                  onUpdateExam({ ...examPackage, part2: nextPart2 });
+                                }}
+                              />
+                              <span className="font-bold text-cyan-300">{st.letter})</span>
+                              <input
+                                type="text"
+                                value={cleanPedagogyText(st.text)}
+                                onChange={(e) => {
+                                  const nextSt = [...q.statements];
+                                  nextSt[sIdx] = { ...st, text: e.target.value };
+                                  const nextPart2 = [...examPackage.part2];
+                                  nextPart2[qIdx] = { ...q, statements: nextSt };
+                                  onUpdateExam({ ...examPackage, part2: nextPart2 });
+                                }}
+                                className="flex-1 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-white"
+                              />
+                            </div>
+                          ) : (
+                            <div className="text-justify">
+                              <span
+                                className={
+                                  isUnderlined
+                                    ? 'underline decoration-2 underline-offset-4 font-bold text-emerald-400 mr-1.5'
+                                    : 'font-bold text-zinc-200 mr-1.5'
+                                }
+                              >
+                                {st.letter}
+                              </span>
+                              <span className={getCompetencyColorClass(st.text)}>
+                                ) {cleanPedagogyText(st.text)}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
@@ -346,45 +584,61 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
             </div>
           </div>
 
-          {/* PART III: Short Answer */}
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-5">
+          {/* PART III */}
+          <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-emerald-400 space-y-5">
             <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white">
-                  PHẦN III. Câu trắc nghiệm trả lời ngắn (Short Answer)
-                </h3>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  Đánh giá năng lực tính toán, vận dụng và điền đáp số trực tiếp
-                </p>
-              </div>
-              <span className="text-xs text-zinc-400 font-mono">
-                {examPackage.part3.length} câu hỏi
-              </span>
+              <h3 className="font-bold text-white uppercase">
+                PHẦN III. Câu trắc nghiệm trả lời ngắn
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {examPackage.part3.map((q) => (
+              {examPackage.part3.map((q, qIdx) => (
                 <div
                   key={q.id}
                   className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-3 flex flex-col justify-between"
                 >
                   <div className="space-y-2">
-                    <div className="text-xs text-cyan-400 font-bold">
-                      Câu {q.number} · {q.bloomLevel}
+                    <div className="text-cyan-400 font-bold">
+                      Câu {q.number} ({q.bloomLevel})
                     </div>
-                    <p className="text-sm text-zinc-100 leading-relaxed text-justify">
-                      {q.stem}
-                    </p>
+                    {isEditing ? (
+                      <textarea
+                        value={cleanPedagogyText(q.stem)}
+                        onChange={(e) => {
+                          const next = [...examPackage.part3];
+                          next[qIdx] = { ...q, stem: e.target.value };
+                          onUpdateExam({ ...examPackage, part3: next });
+                        }}
+                        rows={2}
+                        className="w-full p-2 rounded bg-slate-900 border border-emerald-500 text-white"
+                      />
+                    ) : (
+                      <p className={`text-justify ${getCompetencyColorClass(q.stem)}`}>
+                        {cleanPedagogyText(q.stem)}
+                      </p>
+                    )}
                   </div>
 
-                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-between text-sm">
-                    <span className="text-xs text-zinc-400">Kết quả chuẩn:</span>
-                    {underlineKeyMode ? (
-                      <span className="underline decoration-2 underline-offset-4 font-black text-emerald-400 font-mono text-base">
+                  <div className="pt-3 border-t border-zinc-800 flex items-center justify-between">
+                    <span className="text-zinc-400">Đáp số:</span>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={q.correctAnswer}
+                        onChange={(e) => {
+                          const next = [...examPackage.part3];
+                          next[qIdx] = { ...q, correctAnswer: e.target.value };
+                          onUpdateExam({ ...examPackage, part3: next });
+                        }}
+                        className="bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-emerald-300 font-bold"
+                      />
+                    ) : underlineKeyMode ? (
+                      <span className="underline decoration-2 underline-offset-4 font-bold text-emerald-400">
                         {q.correctAnswer}
                       </span>
                     ) : (
-                      <span className="text-zinc-500 font-mono">....................</span>
+                      <span className="text-zinc-500">....................</span>
                     )}
                   </div>
                 </div>
@@ -394,32 +648,29 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
         </div>
       )}
 
-      {/* VIEW 2: MODULE 6 - ADVERSARIAL AUDIT & DISTRACTOR ANALYSIS */}
+      {/* VIEW 2: ADVERSARIAL AUDIT */}
       {activeSubView === 'audit' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 doc-times-12pt">
+          <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-amber-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-white">
-                Phân Hệ 06: Thanh Tra Phản Biện Đề Thi & Phân Tích Độ Nhiễu (Adversarial Audit)
+              <h3 className="font-bold text-white">
+                Thanh Tra Phản Biện Đề Thi & Phân Tích Độ Nhiễu
               </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Thực thi trên luồng Web Worker độc lập (0% UI Freeze) · Quét bẫy độ dài phương án, từ ngữ cực đoan và độ phân cách
-              </p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2.5 font-sans">
               <button
                 onClick={handleRunWorkerAudit}
                 disabled={isAuditing}
-                className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-semibold border border-zinc-700 transition-colors"
+                className="btn-3d btn-3d-cyan px-3.5 py-2 rounded-xl text-xs font-extrabold"
               >
-                {isAuditing ? 'Đang quét...' : 'Quét Lại Đề (Web Worker)'}
+                {isAuditing ? 'Đang quét...' : 'Quét Lại Đề Thi'}
               </button>
 
               <button
                 onClick={handleAutoOptimizeDistractors}
                 disabled={isAuditing}
-                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-zinc-950 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="btn-3d btn-3d-amber px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
               >
                 <Wand2 className="w-3.5 h-3.5" />
                 <span>Tự Động Cân Bằng Phương Án Nhiễu</span>
@@ -427,45 +678,36 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
             </div>
           </div>
 
-          {/* 4 Quality Metrics */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-400">Chỉ Số Chất Lượng Tổng Thể</p>
-              <p className="text-2xl font-bold font-mono text-emerald-400 mt-1">
+              <p className="text-zinc-400">Chỉ Số Chất Lượng</p>
+              <p className="text-2xl font-bold text-emerald-400 mt-1">
                 {examPackage.auditReport.overallQualityScore}/100
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">Chuẩn khảo thí quốc gia</p>
             </div>
-
             <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-400">Độ Nhiễu Phương Án Sai</p>
-              <p className="text-2xl font-bold font-mono text-cyan-400 mt-1">
+              <p className="text-zinc-400">Độ Nhiễu Phương Án Sai</p>
+              <p className="text-2xl font-bold text-cyan-400 mt-1">
                 {examPackage.auditReport.distractorIndex}%
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">Distractor Effectiveness</p>
             </div>
-
             <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-400">Độ Tường Minh Câu Dẫn</p>
-              <p className="text-2xl font-bold font-mono text-zinc-100 mt-1">
+              <p className="text-zinc-400">Độ Tường Minh Câu Dẫn</p>
+              <p className="text-2xl font-bold text-zinc-100 mt-1">
                 {examPackage.auditReport.clarityIndex}%
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">0 câu hỏi mơ hồ đa nghĩa</p>
             </div>
-
             <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-400">Cân Bằng Thang Bloom</p>
-              <p className="text-2xl font-bold font-mono text-amber-400 mt-1">
+              <p className="text-zinc-400">Cân Bằng Thang Nhận Thức</p>
+              <p className="text-2xl font-bold text-amber-400 mt-1">
                 {examPackage.auditReport.bloomBalanceIndex}%
               </p>
-              <p className="text-xs text-zinc-500 mt-0.5">Đủ 4 cấp độ nhận thức</p>
             </div>
           </div>
 
-          {/* Detailed Findings */}
-          <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-3">
-            <h4 className="text-sm font-bold text-white">
-              Chi Tiết Báo Cáo Phản Biện Từng Câu Hỏi & Khuyến Nghị Chỉnh Sửa
+          <div className="p-5 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-3">
+            <h4 className="font-bold text-white">
+              Chi Tiết Báo Cáo Phản Biện Từng Câu Hỏi
             </h4>
             <div className="space-y-3">
               {examPackage.auditReport.findings.map((f, idx) => (
@@ -474,7 +716,7 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
                   className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                 >
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2 text-xs">
+                    <div className="flex items-center gap-2">
                       {f.severity === 'optimal' ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                       ) : (
@@ -484,18 +726,13 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
                       <span aria-hidden="true">·</span>
                       <span className="text-zinc-400">{f.category}</span>
                     </div>
-                    <p className="text-xs text-zinc-300 leading-relaxed">
-                      {f.issueDescription}
-                    </p>
-                    <p className="text-xs text-cyan-400">
-                      Khuyến nghị: {f.recommendation}
-                    </p>
+                    <p className="text-zinc-300">{f.issueDescription}</p>
+                    <p className="text-cyan-400">Khuyến nghị: {f.recommendation}</p>
                   </div>
-                  <div className="text-right font-mono shrink-0">
-                    <span className="text-sm font-bold text-emerald-400">
+                  <div className="text-right shrink-0">
+                    <span className="font-bold text-emerald-400">
                       {f.distractorScore}/100
                     </span>
-                    <span className="block text-[11px] text-zinc-500">Điểm độ nhiễu</span>
                   </div>
                 </div>
               ))}
@@ -504,22 +741,15 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
         </div>
       )}
 
-      {/* VIEW 3: MODULE 7 - EXAM MATRIX & SPECIFICATION TABLE */}
+      {/* VIEW 3: EXAM MATRIX (STRICT 12PT TIMES NEW ROMAN) */}
       {activeSubView === 'matrix' && (
-        <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-white">
-                Phân Hệ 07: Bảng Ma Trận & Đặc Tả Kỹ Thuật Đề Kiểm Tra Chuẩn Mới
-              </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Phân bổ tỷ lệ nhận thức chuẩn: Nhận biết (40%) · Thông hiểu (30%) · Vận dụng (20%) · Vận dụng cao (10%)
-              </p>
-            </div>
-          </div>
+        <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-emerald-400 space-y-4 doc-times-12pt">
+          <h3 className="font-bold text-white uppercase">
+            BẢNG MA TRẬN & ĐẶC TẢ KỸ THUẬT ĐỀ KIỂM TRA
+          </h3>
 
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-zinc-700 text-xs sm:text-sm">
+            <table className="w-full border-collapse border border-zinc-700">
               <thead>
                 <tr className="bg-zinc-950 text-zinc-200">
                   <th className="border border-zinc-700 p-3 text-center">TT</th>
@@ -535,28 +765,28 @@ export const ExamSuiteTab: React.FC<ExamSuiteTabProps> = ({
               <tbody>
                 {examPackage.matrix.map((row) => (
                   <tr key={row.topicNumber} className="align-top hover:bg-zinc-950/60">
-                    <td className="border border-zinc-800 p-3 text-center font-mono">
+                    <td className="border border-zinc-800 p-3 text-center">
                       {row.topicNumber}
                     </td>
                     <td className="border border-zinc-800 p-3 font-semibold text-white">
-                      {row.topicName}
+                      {cleanPedagogyText(row.topicName)}
                     </td>
                     <td className="border border-zinc-800 p-3 text-zinc-300">
-                      {row.contentUnit}
+                      {cleanPedagogyText(row.contentUnit)}
                     </td>
-                    <td className="border border-zinc-800 p-3 text-zinc-300 whitespace-pre-line">
-                      {row.learningOutcomeSpec}
+                    <td className="border border-zinc-800 p-3 text-zinc-200 whitespace-pre-line">
+                      {cleanPedagogyText(row.learningOutcomeSpec)}
                     </td>
-                    <td className="border border-zinc-800 p-3 text-center font-mono text-cyan-300">
+                    <td className="border border-zinc-800 p-3 text-center text-cyan-300">
                       {row.part1Counts.biet} / {row.part1Counts.hieu} / {row.part1Counts.vanDung} / {row.part1Counts.vanDungCao}
                     </td>
-                    <td className="border border-zinc-800 p-3 text-center font-mono text-emerald-300">
+                    <td className="border border-zinc-800 p-3 text-center text-emerald-300">
                       {row.part2Counts.biet} / {row.part2Counts.hieu} / {row.part2Counts.vanDung} / {row.part2Counts.vanDungCao}
                     </td>
-                    <td className="border border-zinc-800 p-3 text-center font-mono text-amber-300">
+                    <td className="border border-zinc-800 p-3 text-center text-amber-300">
                       {row.part3Counts.biet} / {row.part3Counts.hieu} / {row.part3Counts.vanDung} / {row.part3Counts.vanDungCao}
                     </td>
-                    <td className="border border-zinc-800 p-3 text-center font-bold text-white font-mono">
+                    <td className="border border-zinc-800 p-3 text-center font-bold text-white">
                       {row.percentScore}% ({row.totalPoints.toFixed(1)}đ)
                     </td>
                   </tr>

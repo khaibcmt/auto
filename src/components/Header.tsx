@@ -12,8 +12,16 @@ import {
   VolumeX,
   Laptop,
   CloudUpload,
+  HelpCircle,
+  Monitor,
+  Tablet,
+  Smartphone,
+  Tv,
+  Maximize2,
 } from 'lucide-react';
 import { TabType, Language } from '../types';
+
+export type ViewportDisplayMode = 'auto' | 'pc' | 'laptop' | 'tablet' | 'mobile' | 'projector';
 
 interface HeaderProps {
   activeTab: TabType;
@@ -25,6 +33,9 @@ interface HeaderProps {
   currentProvider: string;
   currentModel: string;
   logCount: number;
+  onOpenGuide: () => void;
+  displayMode: ViewportDisplayMode;
+  setDisplayMode: (mode: ViewportDisplayMode) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -37,6 +48,9 @@ export const Header: React.FC<HeaderProps> = ({
   currentProvider,
   currentModel,
   logCount,
+  onOpenGuide,
+  displayMode,
+  setDisplayMode,
 }) => {
   const isVi = language === 'vi';
 
@@ -70,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'lesson5512',
-      labelVi: 'Giáo Án & Mã Màu',
+      labelVi: 'Giáo Án Chuẩn 5512',
       labelEn: 'Lesson Plan',
       icon: <BookOpenCheck className="w-4 h-4 text-sky-200" />,
       activeStyle:
@@ -80,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
     },
     {
       id: 'examsuite',
-      labelVi: 'Sinh Đề · Phản Biện · Ma Trận',
+      labelVi: 'Đề Thi · Phản Biện · Ma Trận',
       labelEn: 'Exam Suite & Matrix',
       icon: <FileCheck2 className="w-4 h-4 text-amber-200" />,
       activeStyle:
@@ -150,13 +164,26 @@ export const Header: React.FC<HeaderProps> = ({
     },
   ];
 
+  const displayModes: {
+    id: ViewportDisplayMode;
+    label: string;
+    icon: React.ReactNode;
+    btnColor: string;
+  }[] = [
+    { id: 'auto', label: 'Tự Động', icon: <Maximize2 className="w-3.5 h-3.5" />, btnColor: 'btn-3d-cyan' },
+    { id: 'pc', label: 'PC / Máy Bàn', icon: <Monitor className="w-3.5 h-3.5" />, btnColor: 'btn-3d-indigo' },
+    { id: 'laptop', label: 'Laptop', icon: <Laptop className="w-3.5 h-3.5" />, btnColor: 'btn-3d-emerald' },
+    { id: 'tablet', label: 'Máy Tính Bảng', icon: <Tablet className="w-3.5 h-3.5" />, btnColor: 'btn-3d-purple' },
+    { id: 'mobile', label: 'Điện Thoại', icon: <Smartphone className="w-3.5 h-3.5" />, btnColor: 'btn-3d-rose' },
+    { id: 'projector', label: 'Máy Chiếu', icon: <Tv className="w-3.5 h-3.5" />, btnColor: 'btn-3d-amber' },
+  ];
+
   return (
     <header className="frame-3d-header sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 space-y-2.5">
         {/* Top Row: Redesigned 3D Emblem Logo + Blinking Title + Author Hồ Tấn Khải */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3.5">
-            {/* Custom 3D Royal Cyber-Crest Logo */}
             <div className="logo-3d-emblem w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative overflow-hidden">
               <svg
                 viewBox="0 0 48 48"
@@ -196,7 +223,17 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Right 3D Quick Controls */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Nút Hướng Dẫn Sử Dụng & Vai Trò Của Web */}
+            <button
+              onClick={onOpenGuide}
+              className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 whitespace-nowrap"
+              title="Xem Hướng dẫn sử dụng, Vai trò của Web & Tải về đa định dạng"
+            >
+              <HelpCircle className="w-4 h-4 text-yellow-200" />
+              <span>{isVi ? 'Hướng Dẫn & Vai Trò Web' : 'Guide & Web Role'}</span>
+            </button>
+
             <button
               onClick={() => setActiveTab('models')}
               className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 whitespace-nowrap"
@@ -237,7 +274,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* 3D Multi-Color Shadow Feature Navigation Bar */}
-        <nav className="p-2 rounded-2xl bg-slate-900/90 border-2 border-sky-400/50 shadow-[0_8px_20px_rgba(2,132,199,0.3)] flex items-center gap-2 overflow-x-auto scrollbar-none">
+        <nav className="p-2 rounded-2xl bg-slate-900/95 border-2 border-sky-400/60 shadow-[0_8px_20px_rgba(2,132,199,0.35)] flex items-center gap-2 overflow-x-auto scrollbar-none">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
             return (
@@ -254,6 +291,30 @@ export const Header: React.FC<HeaderProps> = ({
             );
           })}
         </nav>
+
+        {/* 3D Multi-Device Auto-Scaling Display Mode Bar */}
+        <div className="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-sky-500/40 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="font-bold text-cyan-300">
+            Chế độ hiển thị tự động co dãn:
+          </span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {displayModes.map((m) => {
+              const active = displayMode === m.id;
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setDisplayMode(m.id)}
+                  className={`btn-3d px-2.5 py-1 rounded-lg text-[11px] font-extrabold flex items-center gap-1 ${
+                    active ? m.btnColor : 'bg-slate-800 text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  {m.icon}
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
     </header>
   );

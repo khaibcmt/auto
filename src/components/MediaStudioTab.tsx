@@ -4,7 +4,6 @@ import {
   Film,
   Gamepad2,
   Download,
-  Play,
   Square,
   ChevronLeft,
   ChevronRight,
@@ -13,14 +12,23 @@ import {
   Volume2,
   Trophy,
   RotateCcw,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Plus,
+  Upload,
+  Edit3,
+  Trash2,
 } from 'lucide-react';
 import {
   SlideItem,
   MicroVideoPackage,
   WorksheetAndGamePackage,
 } from '../types/pedagogyTypes';
-import { exportSlidesToPptx, exportWorksheetToWord } from '../utils/exportHelpers';
+import {
+  exportSlidesToPptx,
+  exportWorksheetToWord,
+  detectCompetencyTypeFromText,
+} from '../utils/exportHelpers';
+import { cleanPedagogyText } from '../data/pedagogyPresets';
 import { soundSynth } from '../utils/audioSynth';
 
 interface MediaStudioTabProps {
@@ -28,6 +36,9 @@ interface MediaStudioTabProps {
   slides: SlideItem[];
   microVideo: MicroVideoPackage;
   worksheetGame: WorksheetAndGamePackage;
+  onUpdateSlides?: (slides: SlideItem[]) => void;
+  onUpdateMicroVideo?: (video: MicroVideoPackage) => void;
+  onUpdateWorksheetGame?: (wg: WorksheetAndGamePackage) => void;
   isGenerating: boolean;
   onRegenerateModule: (task: 'slides' | 'microvideo' | 'worksheet') => void;
   onLog: (msg: string, level?: 'info' | 'engine' | 'warning') => void;
@@ -38,6 +49,9 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
   slides,
   microVideo,
   worksheetGame,
+  onUpdateSlides,
+  onUpdateMicroVideo,
+  onUpdateWorksheetGame,
   isGenerating,
   onRegenerateModule,
   onLog,
@@ -45,15 +59,17 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
   const [activeSubTab, setActiveSubTab] = useState<'slides' | 'video' | 'worksheet_game'>('slides');
   const [currentSlideIdx, setCurrentSlideIdx] = useState<number>(0);
   const [isExportingPptx, setIsExportingPptx] = useState<boolean>(false);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
+  const uploadInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Module 9: Video Studio state
+  // Video Studio state
   const [activeSceneIdx, setActiveSceneIdx] = useState<number>(0);
   const [isPlayingVideo, setIsPlayingVideo] = useState<boolean>(false);
   const [isRecordingVideo, setIsRecordingVideo] = useState<boolean>(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
-  // Module 10: Worksheet & Mini-game state
+  // Worksheet & Mini-game state
   const [showWorksheetAnswers, setShowWorksheetAnswers] = useState<boolean>(false);
   const [gameStep, setGameStep] = useState<number>(0);
   const [gameScore, setGameScore] = useState<number>(0);
@@ -63,13 +79,171 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
   const currentSlide = slides[currentSlideIdx] || slides[0];
   const currentScene = microVideo.scenes[activeSceneIdx] || microVideo.scenes[0];
 
-  // Export PPTX via Lazy-Loaded PptxGenJS
+  const getCompetencyColorClass = (text: string) => {
+    const cleaned = cleanPedagogyText(text);
+    const kind = detectCompetencyTypeFromText(cleaned);
+    if (kind === 'NLS') return 'text-[#60a5fa] font-semibold';
+    if (kind === 'NLAI') return 'text-[#f87171] font-semibold';
+    if (kind === 'THLM') return 'text-[#fbbf24] font-semibold';
+    return 'text-zinc-100';
+  };
+
+  // Add / Upload / Delete handlers for Slides, Video, and Game
+  const handleAddItem = () => {
+    if (activeSubTab === 'slides' && onUpdateSlides) {
+      const nextNum = slides.length + 1;
+      const newSlide: SlideItem = {
+        slideNumber: nextNum,
+        title: `Slide ${nextNum}: Nội dung mở rộng - ${cleanPedagogyText(lessonTitle)}`,
+        subtitle: 'Hoạt động vận dụng & thảo luận nhóm',
+        bullets: [
+          'Khai thác học liệu số và bảng dữ liệu trực quan để rút ra nhận xét.',
+          'Liên hệ kiến thức liên môn Toán học, Công nghệ và bối cảnh thực tế.',
+        ],
+        interactiveQuestion: 'Câu hỏi thảo luận: Giải pháp tối ưu nhất trong tình huống này là gì?',
+        speakerNotes: 'Giáo viên mời đại diện các nhóm trình bày kết quả và chốt kiến thức.',
+      };
+      onUpdateSlides([...slides, newSlide]);
+      setCurrentSlideIdx(slides.length);
+      setIsEditing(true);
+      onLog(`Đã thêm Slide số ${nextNum}.`, 'info');
+    } else if (activeSubTab === 'video' && onUpdateMicroVideo) {
+      const nextNum = microVideo.scenes.length + 1;
+      const newScene = {
+        sceneNumber: nextNum,
+        timeRange: '02:30 - 03:00',
+        durationSec: 30,
+        phase: 'Call to Action' as const,
+        visualDirection: 'Sơ đồ tổng kết bài học và câu hỏi mở rộng.',
+        motionEffect: 'Zoom-in mượt vào từ khóa trọng tâm',
+        voiceoverScript: 'Các em hãy hoàn thành thử thách thực hành và chia sẻ kết quả cùng cả lớp.',
+        subtitleText: 'Thử thách vận dụng thực tiễn sau bài học.',
+        accentColor: '#10b981',
+      };
+      onUpdateMicroVideo({
+        ...microVideo,
+        totalDurationSec: microVideo.totalDurationSec + 30,
+        scenes: [...microVideo.scenes, newScene],
+      });
+      setActiveSceneIdx(microVideo.scenes.length);
+      setIsEditing(true);
+      onLog(`Đã thêm Cảnh video số ${nextNum}.`, 'info');
+    } else if (activeSubTab === 'worksheet_game' && onUpdateWorksheetGame) {
+      const nextGameQ = {
+        id: `game-q-${Date.now()}`,
+        question: `Câu hỏi tương tác bổ sung: Ứng dụng thực tế quan trọng nhất của "${cleanPedagogyText(lessonTitle)}" là gì?`,
+        options: [
+          'Tối ưu hóa hiệu suất và giải quyết bài toán thực tiễn',
+          'Chỉ dùng để ghi nhớ lý thuyết thuần túy',
+          'Không liên quan đến dữ liệu thực nghiệm',
+          'Bỏ qua các điều kiện biên kỹ thuật',
+        ],
+        correctIndex: 0,
+        points: 100,
+        hint: 'Gợi ý: Liên hệ hoạt động Vận dụng.',
+      };
+      onUpdateWorksheetGame({
+        ...worksheetGame,
+        gameQuestions: [...worksheetGame.gameQuestions, nextGameQ],
+      });
+      setIsEditing(true);
+      onLog('Đã thêm câu hỏi mới vào Trò chơi học tập.', 'info');
+    }
+  };
+
+  const handleDeleteCurrentItem = () => {
+    if (activeSubTab === 'slides' && onUpdateSlides) {
+      if (slides.length <= 1) {
+        onLog('Cần giữ lại ít nhất 1 Slide.', 'warning');
+        return;
+      }
+      const next = slides
+        .filter((_, idx) => idx !== currentSlideIdx)
+        .map((s, idx) => ({ ...s, slideNumber: idx + 1 }));
+      onUpdateSlides(next);
+      setCurrentSlideIdx(Math.max(0, currentSlideIdx - 1));
+      onLog('Đã xóa Slide hiện tại.', 'warning');
+    } else if (activeSubTab === 'video' && onUpdateMicroVideo) {
+      if (microVideo.scenes.length <= 1) return;
+      const nextScenes = microVideo.scenes
+        .filter((_, idx) => idx !== activeSceneIdx)
+        .map((sc, idx) => ({ ...sc, sceneNumber: idx + 1 }));
+      onUpdateMicroVideo({ ...microVideo, scenes: nextScenes });
+      setActiveSceneIdx(Math.max(0, activeSceneIdx - 1));
+      onLog('Đã xóa phân cảnh video.', 'warning');
+    } else if (activeSubTab === 'worksheet_game' && onUpdateWorksheetGame) {
+      if (worksheetGame.gameQuestions.length <= 1) return;
+      const nextQs = worksheetGame.gameQuestions.filter((_, idx) => idx !== gameStep);
+      onUpdateWorksheetGame({ ...worksheetGame, gameQuestions: nextQs });
+      setGameStep(0);
+      onLog('Đã xóa câu hỏi khỏi Trò chơi ôn tập.', 'warning');
+    }
+  };
+
+  const handleUploadFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const lines = text
+        .split('\n')
+        .map((l) => cleanPedagogyText(l))
+        .filter(Boolean);
+      if (activeSubTab === 'slides' && onUpdateSlides && lines.length > 0) {
+        const nextNum = slides.length + 1;
+        onUpdateSlides([
+          ...slides,
+          {
+            slideNumber: nextNum,
+            title: lines[0] || `Slide ${nextNum}`,
+            subtitle: lines[1] || cleanPedagogyText(lessonTitle),
+            bullets: lines.slice(2, 6).length > 0 ? lines.slice(2, 6) : lines,
+            interactiveQuestion: 'Câu hỏi thảo luận từ tài liệu tải lên.',
+            speakerNotes: lines.join(' '),
+          },
+        ]);
+        setCurrentSlideIdx(slides.length);
+        setIsEditing(true);
+        onLog(`Đã tải lên tệp "${file.name}" vào Slide Studio!`, 'info');
+      } else if (activeSubTab === 'worksheet_game' && onUpdateWorksheetGame) {
+        try {
+          const parsed = JSON.parse(text);
+          if (Array.isArray(parsed)) {
+            onUpdateWorksheetGame({ ...worksheetGame, gameQuestions: parsed });
+            onLog(`Đã nạp gói câu hỏi Game từ "${file.name}"!`, 'info');
+          }
+        } catch {
+          if (lines.length > 0) {
+            onUpdateWorksheetGame({
+              ...worksheetGame,
+              tasks: [
+                ...worksheetGame.tasks,
+                {
+                  taskNumber: worksheetGame.tasks.length + 1,
+                  taskTitle: `Nhiệm vụ ${worksheetGame.tasks.length + 1}: ${lines[0]}`,
+                  instructions: 'Hoàn thành nội dung phiếu học tập:',
+                  promptsWithBlanks: lines.slice(1),
+                  answerKey: ['Đáp án từ tệp tải lên.'],
+                  competencyTag: 'NLS',
+                },
+              ],
+            });
+            setIsEditing(true);
+            onLog(`Đã tải lên tệp "${file.name}" vào Phiếu học tập!`, 'info');
+          }
+        }
+      }
+    } catch {
+      onLog('Không thể đọc tệp tải lên.', 'warning');
+    }
+    e.target.value = '';
+  };
+
   const handleExportPptx = async () => {
     setIsExportingPptx(true);
-    onLog('Đang nạp động thư viện PptxGenJS (Lazy Load CDN) và đóng gói file .pptx...', 'engine');
     try {
-      await exportSlidesToPptx(slides, lessonTitle);
-      onLog('Đã xuất thành công file PowerPoint (.pptx) kèm Speaker Notes ở từng slide!', 'info');
+      await exportSlidesToPptx(slides, cleanPedagogyText(lessonTitle));
+      onLog('Đã tải về file PowerPoint (.pptx) chuẩn Times New Roman 12pt!', 'info');
     } catch (err) {
       onLog(`Lỗi xuất PPTX: ${err instanceof Error ? err.message : String(err)}`, 'warning');
     } finally {
@@ -77,7 +251,7 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
     }
   };
 
-  // Module 9: Render 60 FPS Canvas frame for current scene
+  // Render 60 FPS Canvas frame for current scene
   useEffect(() => {
     if (activeSubTab !== 'video') return;
     const canvas = canvasRef.current;
@@ -85,55 +259,48 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let startTick = performance.now();
+    const startTick = performance.now();
 
     const renderFrame = (now: number) => {
       const elapsed = (now - startTick) / 1000;
       const w = canvas.width;
       const h = canvas.height;
 
-      // Background gradient
       const grad = ctx.createLinearGradient(0, 0, w, h);
       grad.addColorStop(0, '#09090b');
       grad.addColorStop(1, '#0f172a');
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, w, h);
 
-      // Top competency accent bar
       ctx.fillStyle = currentScene.accentColor || '#06b6d4';
       ctx.fillRect(0, 0, w, 8);
 
-      // Animated pulse circle
       const pulseRadius = 36 + Math.sin(elapsed * 3) * 6;
       ctx.beginPath();
       ctx.arc(w - 65, 55, pulseRadius, 0, Math.PI * 2);
       ctx.fillStyle = `${currentScene.accentColor}22`;
       ctx.fill();
 
-      // Scene badge & timeRange
       ctx.fillStyle = '#38bdf8';
-      ctx.font = 'bold 14px monospace';
+      ctx.font = 'bold 16px "Times New Roman", serif';
       ctx.fillText(
-        `CẢNH ${currentScene.sceneNumber}/${microVideo.scenes.length}  ·  ${currentScene.timeRange}  ·  ${currentScene.phase.toUpperCase()}`,
+        `CẢNH ${currentScene.sceneNumber}/${microVideo.scenes.length}  ·  ${currentScene.timeRange}`,
         32,
         46
       );
 
-      // Lesson Title
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 21px sans-serif';
-      ctx.fillText(lessonTitle.slice(0, 56), 32, 84);
+      ctx.font = 'bold 22px "Times New Roman", serif';
+      ctx.fillText(cleanPedagogyText(lessonTitle).slice(0, 56), 32, 84);
 
-      // Motion direction box
       ctx.fillStyle = '#1e293b';
       ctx.fillRect(32, 108, w - 64, 58);
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '13px sans-serif';
-      ctx.fillText(`Hiệu ứng hình ảnh: ${currentScene.motionEffect}`, 46, 132);
+      ctx.font = '16px "Times New Roman", serif';
+      ctx.fillText(`Hiệu ứng: ${cleanPedagogyText(currentScene.motionEffect)}`, 46, 132);
       ctx.fillStyle = '#cbd5e1';
-      ctx.fillText(`Bối cảnh: ${currentScene.visualDirection.slice(0, 78)}`, 46, 154);
+      ctx.fillText(`Bối cảnh: ${cleanPedagogyText(currentScene.visualDirection).slice(0, 72)}`, 46, 154);
 
-      // Subtitle Kinetic Box at bottom
       ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
       ctx.strokeStyle = currentScene.accentColor || '#06b6d4';
       ctx.lineWidth = 2;
@@ -141,8 +308,8 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
       ctx.strokeRect(32, h - 125, w - 64, 88);
 
       ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 15px sans-serif';
-      const sub = currentScene.subtitleText;
+      ctx.font = 'bold 16px "Times New Roman", serif';
+      const sub = cleanPedagogyText(currentScene.subtitleText);
       const line1 = sub.slice(0, 72);
       const line2 = sub.slice(72, 144);
       ctx.fillText(line1, 48, h - 88);
@@ -174,11 +341,11 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
     }
 
     setIsPlayingVideo(true);
-    onLog(`Đang phát Cảnh ${currentScene.sceneNumber} (${currentScene.timeRange}) kèm giọng đọc AI...`, 'info');
+    onLog(`Đang phát Cảnh ${currentScene.sceneNumber} kèm giọng đọc...`, 'info');
 
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.cancel();
-      const utter = new SpeechSynthesisUtterance(currentScene.voiceoverScript);
+      const utter = new SpeechSynthesisUtterance(cleanPedagogyText(currentScene.voiceoverScript));
       utter.lang = 'vi-VN';
       utter.rate = 1.02;
       utter.onend = () => {
@@ -190,14 +357,12 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
     }
   };
 
-  // Record 4-second preview clip from HTML5 Canvas to downloadable video file
   const handleRecordAndDownloadVideo = () => {
     const canvas = canvasRef.current;
     if (!canvas || isRecordingVideo) return;
 
     try {
       setIsRecordingVideo(true);
-      onLog('Đang kết xuất khung hình video bài giảng từ Canvas (60 FPS)...', 'engine');
       const stream = canvas.captureStream(30);
       const recorder = new MediaRecorder(stream);
       const chunks: BlobPart[] = [];
@@ -211,11 +376,11 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `Video_Vi_Mo_Canh_${currentScene.sceneNumber}.webm`;
+        a.download = `Video_Bai_Giang_Canh_${currentScene.sceneNumber}.webm`;
         a.click();
         URL.revokeObjectURL(url);
         setIsRecordingVideo(false);
-        onLog('Đã xuất thành công file Video bài giảng vi mô!', 'info');
+        onLog('Đã tải về file Video bài giảng (.webm)!', 'info');
       };
 
       recorder.start();
@@ -226,11 +391,11 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
       }, 3500);
     } catch {
       setIsRecordingVideo(false);
-      onLog('Trình duyệt hiện tại không hỗ trợ MediaRecorder trên Canvas.', 'warning');
+      onLog('Trình duyệt hiện tại không hỗ trợ ghi video trực tiếp.', 'warning');
     }
   };
 
-  // Module 10: Mini-game handler
+  // Mini-game handler
   const currentGameQ = worksheetGame.gameQuestions[gameStep] || worksheetGame.gameQuestions[0];
 
   const handleSelectGameAnswer = (idx: number) => {
@@ -266,90 +431,122 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'Goi_Cau_Hoi_MiniGame_On_Tap.json';
+    a.download = 'Goi_Cau_Hoi_Game_Hoc_Tap.json';
     a.click();
     URL.revokeObjectURL(url);
-    onLog('Đã xuất gói câu hỏi trắc nghiệm JSON để import vào hệ thống tương tác', 'info');
+    onLog('Đã tải về gói câu hỏi Game (.json).', 'info');
   };
 
   return (
     <div className="space-y-6">
-      {/* Sub-navigation for Modules 8, 9, 10 */}
-      <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-1 p-1 bg-zinc-950 rounded-lg border border-zinc-800">
+      {/* 3D Sub-navigation & Full CRUD Toolbar */}
+      <div className="p-4 rounded-2xl bg-zinc-900 border-2 border-purple-400 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setActiveSubTab('slides')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubTab === 'slides'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubTab === 'slides' ? 'btn-3d-cyan' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <Presentation className="w-4 h-4 text-cyan-400" />
-            <span>08. One-Click Slide Studio (.PPTX)</span>
+            <Presentation className="w-4 h-4" />
+            <span>Bài Giảng PowerPoint (.PPTX)</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('video')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubTab === 'video'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubTab === 'video' ? 'btn-3d-purple' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <Film className="w-4 h-4 text-purple-400" />
-            <span>09. Xưởng Video Vi Mô (2-3 Phút)</span>
+            <Film className="w-4 h-4" />
+            <span>Video Bài Giảng</span>
           </button>
 
           <button
             onClick={() => setActiveSubTab('worksheet_game')}
-            className={`px-3.5 py-2 rounded-md text-xs font-semibold flex items-center gap-2 transition-colors ${
-              activeSubTab === 'worksheet_game'
-                ? 'bg-zinc-800 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200'
+            className={`btn-3d px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 ${
+              activeSubTab === 'worksheet_game' ? 'btn-3d-emerald' : 'bg-slate-800 text-slate-200'
             }`}
           >
-            <Gamepad2 className="w-4 h-4 text-emerald-400" />
-            <span>10. Phiếu Học Tập & Trò Chơi Ôn Tập</span>
+            <Gamepad2 className="w-4 h-4" />
+            <span>Phiếu Học Tập & Game Học Tập</span>
           </button>
         </div>
 
-        <div className="text-xs text-zinc-400">
-          Lazy Loading CDN: Chỉ tải thư viện xuất file khi người dùng bấm nút
+        {/* Universal 3D CRUD Buttons: Thêm, Tải lên, Chỉnh sửa, Xóa */}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept=".txt,.json,.doc,.docx,.md"
+            onChange={handleUploadFile}
+            className="hidden"
+          />
+
+          <button
+            onClick={handleAddItem}
+            className="btn-3d btn-3d-emerald px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Thêm Mới</span>
+          </button>
+
+          <button
+            onClick={() => uploadInputRef.current?.click()}
+            className="btn-3d btn-3d-purple px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Upload className="w-4 h-4" />
+            <span>Tải Lên</span>
+          </button>
+
+          <button
+            onClick={() => setIsEditing(!isEditing)}
+            className={`btn-3d px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 ${
+              isEditing ? 'btn-3d-amber' : 'btn-3d-indigo'
+            }`}
+          >
+            <Edit3 className="w-4 h-4" />
+            <span>{isEditing ? 'Hoàn Tất Sửa' : 'Chỉnh Sửa'}</span>
+          </button>
+
+          <button
+            onClick={handleDeleteCurrentItem}
+            className="btn-3d btn-3d-rose px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
+          >
+            <Trash2 className="w-4 h-4" />
+            <span>Xóa</span>
+          </button>
         </div>
       </div>
 
-      {/* MODULE 8: ONE-CLICK SLIDE STUDIO (PPTX) */}
+      {/* SLIDE STUDIO (PPTX) */}
       {activeSubTab === 'slides' && currentSlide && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 doc-times-12pt">
+          <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-cyan-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-white">
-                Phân Hệ 08: One-Click Slide Studio — Xuất PowerPoint (.pptx) Kèm Speaker Notes
+              <h3 className="font-bold text-white uppercase">
+                TRÌNH CHIẾU BÀI GIẢNG POWERPOINT (.PPTX)
               </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Phân cấp Tiêu đề · Nội dung cốt lõi · Câu hỏi tương tác · Lời thoại giáo viên ở từng slide
-              </p>
             </div>
 
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 font-sans">
               <button
                 onClick={() => onRegenerateModule('slides')}
                 disabled={isGenerating}
-                className="px-3.5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5"
+                className="btn-3d btn-3d-indigo px-3.5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
               >
-                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-                <span>Tái tạo bộ Slide</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Tạo Lại Bộ Slide</span>
               </button>
 
               <button
                 onClick={handleExportPptx}
                 disabled={isExportingPptx}
-                className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow flex items-center gap-2 transition-colors disabled:opacity-50"
+                className="btn-3d btn-3d-cyan px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
                 <span>
-                  {isExportingPptx ? 'Đang nạp CDN & Xuất .pptx...' : 'Xuất File PowerPoint (.pptx)'}
+                  {isExportingPptx ? 'Đang tải về .pptx...' : 'Tải Về PowerPoint (.PPTX)'}
                 </span>
               </button>
             </div>
@@ -364,85 +561,113 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
                   onClick={() => setCurrentSlideIdx(idx)}
                   className={`w-full text-left p-3 rounded-xl border transition-colors ${
                     currentSlideIdx === idx
-                      ? 'bg-zinc-800 border-cyan-500 text-white'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      ? 'bg-zinc-800 border-cyan-400 text-white'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-mono mb-1">
-                    <span>Slide {s.slideNumber}</span>
-                    <span>[{s.competencyHighlight || '5512'}]</span>
-                  </div>
-                  <p className="text-xs font-bold truncate">{s.title}</p>
+                  <div className="font-bold text-cyan-300 mb-1">Slide {s.slideNumber}</div>
+                  <p className="truncate font-semibold">{cleanPedagogyText(s.title)}</p>
                 </button>
               ))}
             </div>
 
-            {/* 16:9 Slide Canvas Preview + Speaker Notes */}
+            {/* 16:9 Slide Canvas Preview */}
             <div className="lg:col-span-3 space-y-4">
-              <div className="rounded-xl bg-slate-950 border-2 border-zinc-800 overflow-hidden shadow-2xl">
-                {/* Top Competency Accent Bar */}
-                <div
-                  className={`h-2 w-full ${
-                    currentSlide.competencyHighlight === 'NLS'
-                      ? 'bg-blue-600'
-                      : currentSlide.competencyHighlight === 'NLAI'
-                      ? 'bg-red-600'
-                      : 'bg-amber-600'
-                  }`}
-                />
-
+              <div className="rounded-2xl bg-slate-950 border-2 border-cyan-400 overflow-hidden shadow-2xl">
                 <div className="p-6 sm:p-8 min-h-[340px] flex flex-col justify-between space-y-6">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between text-xs font-mono text-cyan-400">
+                    <div className="flex items-center justify-between text-cyan-400 font-bold">
                       <span>
-                        SLIDE {currentSlide.slideNumber} / {slides.length} · NĂNG LỰC TRỌNG TÂM: [{currentSlide.competencyHighlight || '5512'}]
+                        SLIDE {currentSlide.slideNumber} / {slides.length}
                       </span>
-                      <span>16:9 WIDESCREEN</span>
                     </div>
 
-                    <h4 className="text-xl sm:text-2xl font-bold text-white">
-                      {currentSlide.title}
-                    </h4>
-                    <p className="text-sm text-zinc-400 italic">
-                      {currentSlide.subtitle}
-                    </p>
+                    {isEditing && onUpdateSlides ? (
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={cleanPedagogyText(currentSlide.title)}
+                          onChange={(e) => {
+                            const next = [...slides];
+                            next[currentSlideIdx] = { ...currentSlide, title: e.target.value };
+                            onUpdateSlides(next);
+                          }}
+                          className="w-full p-2.5 rounded-lg bg-slate-900 border border-cyan-500 text-white font-bold"
+                        />
+                        <input
+                          type="text"
+                          value={cleanPedagogyText(currentSlide.subtitle)}
+                          onChange={(e) => {
+                            const next = [...slides];
+                            next[currentSlideIdx] = { ...currentSlide, subtitle: e.target.value };
+                            onUpdateSlides(next);
+                          }}
+                          className="w-full p-2 rounded-lg bg-slate-900 border border-slate-700 text-zinc-300"
+                        />
+                        <textarea
+                          value={currentSlide.bullets.map((b) => cleanPedagogyText(b)).join('\n')}
+                          onChange={(e) => {
+                            const next = [...slides];
+                            next[currentSlideIdx] = {
+                              ...currentSlide,
+                              bullets: e.target.value.split('\n'),
+                            };
+                            onUpdateSlides(next);
+                          }}
+                          rows={5}
+                          className="w-full p-2.5 rounded-lg bg-slate-900 border border-cyan-500 text-white"
+                        />
+                      </div>
+                    ) : (
+                      <>
+                        <h4 className="font-bold text-white uppercase">
+                          {cleanPedagogyText(currentSlide.title)}
+                        </h4>
+                        <p className="text-zinc-300 italic">
+                          {cleanPedagogyText(currentSlide.subtitle)}
+                        </p>
 
-                    <div className="pt-3 space-y-2.5">
-                      {currentSlide.bullets.map((b, bIdx) => (
-                        <div key={bIdx} className="flex items-start gap-2.5 text-sm text-zinc-200 leading-relaxed">
-                          <span className="text-cyan-400 font-bold mt-0.5">•</span>
-                          <span>{b}</span>
+                        <div className="pt-3 space-y-2.5">
+                          {currentSlide.bullets.map((b, bIdx) => (
+                            <div
+                              key={bIdx}
+                              className={`flex items-start gap-2.5 ${getCompetencyColorClass(b)}`}
+                            >
+                              <span className="text-cyan-400 font-bold">•</span>
+                              <span>{cleanPedagogyText(b)}</span>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </>
+                    )}
                   </div>
 
                   {currentSlide.interactiveQuestion && (
-                    <div className="p-4 rounded-xl bg-slate-900 border border-cyan-500/40 text-sm text-cyan-300 font-semibold">
-                      Câu hỏi tương tác lớp học: {currentSlide.interactiveQuestion}
+                    <div className="p-4 rounded-xl bg-slate-900 border border-cyan-500/40 text-cyan-300 font-semibold">
+                      Câu hỏi tương tác: {cleanPedagogyText(currentSlide.interactiveQuestion)}
                     </div>
                   )}
                 </div>
 
                 {/* Slide Footer Navigation */}
-                <div className="px-6 py-3 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between text-xs">
+                <div className="px-6 py-3 bg-zinc-900 border-t border-zinc-800 flex items-center justify-between font-sans text-xs">
                   <button
                     onClick={() => setCurrentSlideIdx((p) => Math.max(0, p - 1))}
                     disabled={currentSlideIdx === 0}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 disabled:opacity-40 flex items-center gap-1"
+                    className="btn-3d btn-3d-indigo px-3.5 py-1.5 rounded-xl font-bold disabled:opacity-40 flex items-center gap-1"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>Slide trước</span>
                   </button>
 
-                  <span className="font-mono text-zinc-400">
+                  <span className="font-bold text-zinc-300">
                     Slide {currentSlideIdx + 1} / {slides.length}
                   </span>
 
                   <button
                     onClick={() => setCurrentSlideIdx((p) => Math.min(slides.length - 1, p + 1))}
                     disabled={currentSlideIdx === slides.length - 1}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 disabled:opacity-40 flex items-center gap-1"
+                    className="btn-3d btn-3d-indigo px-3.5 py-1.5 rounded-xl font-bold disabled:opacity-40 flex items-center gap-1"
                   >
                     <span>Slide tiếp</span>
                     <ChevronRight className="w-4 h-4" />
@@ -451,56 +676,65 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
               </div>
 
               {/* Speaker Notes Box */}
-              <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1.5">
-                <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
-                  Speaker Notes — Lời thoại Giáo viên (Tự động nhúng vào từng Slide khi xuất .pptx):
+              <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1.5">
+                <p className="font-bold text-amber-300">
+                  Ghi chú thuyết trình của Giáo viên:
                 </p>
-                <p className="text-sm text-zinc-200 leading-relaxed">
-                  {currentSlide.speakerNotes}
-                </p>
+                {isEditing && onUpdateSlides ? (
+                  <textarea
+                    value={cleanPedagogyText(currentSlide.speakerNotes)}
+                    onChange={(e) => {
+                      const next = [...slides];
+                      next[currentSlideIdx] = { ...currentSlide, speakerNotes: e.target.value };
+                      onUpdateSlides(next);
+                    }}
+                    rows={2}
+                    className="w-full p-2 rounded bg-slate-950 border border-amber-500 text-white"
+                  />
+                ) : (
+                  <p className="text-zinc-200">
+                    {cleanPedagogyText(currentSlide.speakerNotes)}
+                  </p>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODULE 9: MICRO-VIDEO STUDIO (2-3 MINUTES) */}
+      {/* MICRO-VIDEO STUDIO */}
       {activeSubTab === 'video' && currentScene && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-xl bg-zinc-900 border border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-6 doc-times-12pt">
+          <div className="p-5 rounded-2xl bg-zinc-900 border-2 border-purple-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h3 className="text-base font-bold text-white">
-                Phân Hệ 09: Xưởng Video Bài Giảng Vi Mô (2-3 Phút) — Hook / Warm-up
+              <h3 className="font-bold text-white uppercase">
+                XƯỞNG VIDEO BÀI GIẢNG TRỰC QUAN
               </h3>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Tổng thời lượng: {microVideo.totalDurationSec} giây (2 phút 30 giây) · Đồng bộ Timeline từng giây, Phụ đề & Giọng đọc AI
-              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5 font-sans">
               <button
                 onClick={handlePlayMicroVideoWithVoice}
-                className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                className="btn-3d btn-3d-emerald px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
               >
                 {isPlayingVideo ? <Square className="w-3.5 h-3.5" /> : <Volume2 className="w-4 h-4" />}
-                <span>{isPlayingVideo ? 'Dừng Phát' : 'Phát Cảnh & Giọng Đọc AI'}</span>
+                <span>{isPlayingVideo ? 'Dừng Phát' : 'Phát Cảnh & Giọng Đọc'}</span>
               </button>
 
               <button
                 onClick={handleRecordAndDownloadVideo}
                 disabled={isRecordingVideo}
-                className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                className="btn-3d btn-3d-cyan px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 disabled:opacity-50"
               >
                 <Download className="w-4 h-4" />
-                <span>{isRecordingVideo ? 'Đang Ghi Video...' : 'Xuất Video Ngắn (.webm)'}</span>
+                <span>{isRecordingVideo ? 'Đang Ghi Video...' : 'Tải Về Video (.WEBM)'}</span>
               </button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Live HTML5 Canvas Video Preview */}
             <div className="lg:col-span-7 space-y-3">
-              <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950 shadow-xl">
+              <div className="rounded-2xl overflow-hidden border-2 border-purple-400 bg-zinc-950 shadow-xl">
                 <canvas
                   ref={canvasRef}
                   width={760}
@@ -508,20 +742,35 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
                   className="w-full h-auto block"
                 />
               </div>
-              <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-1">
-                <p className="text-xs font-bold text-cyan-400">
-                  Lời bình Voiceover AI (Cảnh {currentScene.sceneNumber} · {currentScene.timeRange}):
+              <div className="p-4 rounded-2xl bg-zinc-900 border border-zinc-800 space-y-1">
+                <p className="font-bold text-cyan-400">
+                  Lời bình thuyết minh (Cảnh {currentScene.sceneNumber}):
                 </p>
-                <p className="text-sm text-zinc-200 leading-relaxed">
-                  "{currentScene.voiceoverScript}"
-                </p>
+                {isEditing && onUpdateMicroVideo ? (
+                  <textarea
+                    value={cleanPedagogyText(currentScene.voiceoverScript)}
+                    onChange={(e) => {
+                      const nextScenes = [...microVideo.scenes];
+                      nextScenes[activeSceneIdx] = {
+                        ...currentScene,
+                        voiceoverScript: e.target.value,
+                      };
+                      onUpdateMicroVideo({ ...microVideo, scenes: nextScenes });
+                    }}
+                    rows={2}
+                    className="w-full p-2 rounded bg-slate-950 border border-cyan-500 text-white"
+                  />
+                ) : (
+                  <p className="text-zinc-200">
+                    "{cleanPedagogyText(currentScene.voiceoverScript)}"
+                  </p>
+                )}
               </div>
             </div>
 
-            {/* Timeline Script Cards */}
             <div className="lg:col-span-5 space-y-3">
-              <h4 className="text-sm font-bold text-white">
-                Kịch Bản Phân Cảnh Chi Tiết Theo Giây (00:00 → 02:30)
+              <h4 className="font-bold text-white uppercase">
+                Danh Sách Phân Cảnh Video
               </h4>
               {microVideo.scenes.map((sc, idx) => (
                 <div
@@ -529,21 +778,18 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
                   onClick={() => setActiveSceneIdx(idx)}
                   className={`p-4 rounded-xl border cursor-pointer transition-all space-y-1.5 ${
                     activeSceneIdx === idx
-                      ? 'bg-zinc-800/90 border-cyan-500'
+                      ? 'bg-zinc-800/90 border-cyan-400'
                       : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-xs font-mono">
+                  <div className="flex items-center justify-between">
                     <span className="font-bold text-cyan-400">
-                      Cảnh {sc.sceneNumber}: {sc.timeRange} ({sc.durationSec}s)
+                      Cảnh {sc.sceneNumber}: {sc.timeRange}
                     </span>
                     <span className="text-zinc-400">{sc.phase}</span>
                   </div>
-                  <p className="text-xs text-zinc-200 font-semibold">
-                    Phụ đề: {sc.subtitleText}
-                  </p>
-                  <p className="text-xs text-zinc-400">
-                    Chuyển động: {sc.motionEffect}
+                  <p className="text-zinc-200 font-semibold">
+                    {cleanPedagogyText(sc.subtitleText)}
                   </p>
                 </div>
               ))}
@@ -552,69 +798,81 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
         </div>
       )}
 
-      {/* MODULE 10: SCAFFOLDING WORKSHEET & REVIEW MINI-GAME */}
+      {/* WORKSHEET & MINI-GAME (STRICT 12PT TIMES NEW ROMAN) */}
       {activeSubTab === 'worksheet_game' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 doc-times-12pt">
           {/* Left: Scaffolding Worksheet */}
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-5 flex flex-col justify-between">
+          <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-emerald-400 space-y-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 pb-3">
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    Phiếu Học Tập Khuyết Thiếu (Scaffolding Worksheet)
-                  </h3>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Thiết kế chuẩn in ấn phát cho nhóm học sinh trong Hoạt động 2 & 3
-                  </p>
-                </div>
+                <h3 className="font-bold text-white uppercase">
+                  PHIẾU HỌC TẬP
+                </h3>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 font-sans">
                   <button
                     onClick={() => setShowWorksheetAnswers(!showWorksheetAnswers)}
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 text-zinc-200 text-xs font-semibold border border-zinc-700"
+                    className="btn-3d btn-3d-indigo px-3 py-1.5 rounded-xl text-xs font-extrabold"
                   >
-                    {showWorksheetAnswers ? 'Ẩn gợi ý đáp án' : 'Hiện gợi ý đáp án'}
+                    {showWorksheetAnswers ? 'Ẩn Đáp Án' : 'Hiện Đáp Án'}
                   </button>
                   <button
                     onClick={() => {
                       exportWorksheetToWord(worksheetGame);
-                      onLog('Đã xuất file Word Phiếu học tập khuyết thiếu (.doc)', 'info');
+                      onLog('Đã tải về Phiếu học tập Word (.doc) Times New Roman 12pt.', 'info');
                     }}
-                    className="px-3.5 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5"
+                    className="btn-3d btn-3d-cyan px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>Xuất Word (.docx)</span>
+                    <span>Tải Về Word (.DOC 12pt)</span>
                   </button>
                 </div>
               </div>
 
-              <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 font-mono">
-                {worksheetGame.studentGroupGuide}
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 text-zinc-200">
+                {cleanPedagogyText(worksheetGame.studentGroupGuide)}
               </div>
 
               <div className="space-y-4">
-                {worksheetGame.tasks.map((task) => (
+                {worksheetGame.tasks.map((task, tIdx) => (
                   <div
                     key={task.taskNumber}
                     className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 space-y-2"
                   >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-cyan-400">{task.taskTitle}</span>
-                      <span className="font-mono text-zinc-400">[{task.competencyTag}]</span>
+                    <div className="font-bold text-cyan-400">
+                      {cleanPedagogyText(task.taskTitle)}
                     </div>
-                    <p className="text-xs text-zinc-400 italic">{task.instructions}</p>
-                    <div className="space-y-1.5 pt-1 text-xs sm:text-sm text-zinc-200">
-                      {task.promptsWithBlanks.map((line, i) => (
-                        <p key={i} className="leading-relaxed">
-                          {line}
-                        </p>
-                      ))}
-                    </div>
+                    <p className="text-zinc-300 italic">
+                      {cleanPedagogyText(task.instructions)}
+                    </p>
+                    {isEditing && onUpdateWorksheetGame ? (
+                      <textarea
+                        value={task.promptsWithBlanks.map((l) => cleanPedagogyText(l)).join('\n')}
+                        onChange={(e) => {
+                          const nextTasks = [...worksheetGame.tasks];
+                          nextTasks[tIdx] = {
+                            ...task,
+                            promptsWithBlanks: e.target.value.split('\n'),
+                          };
+                          onUpdateWorksheetGame({ ...worksheetGame, tasks: nextTasks });
+                        }}
+                        rows={4}
+                        className="w-full p-2 rounded bg-slate-900 border border-emerald-500 text-white"
+                      />
+                    ) : (
+                      <div className="space-y-1.5 pt-1">
+                        {task.promptsWithBlanks.map((line, i) => (
+                          <p key={i} className={getCompetencyColorClass(line)}>
+                            {cleanPedagogyText(line)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                     {showWorksheetAnswers && (
-                      <div className="mt-2 pt-2 border-t border-zinc-800 text-xs text-emerald-400 space-y-1">
-                        <p className="font-bold">Gợi ý đáp án giáo viên:</p>
+                      <div className="mt-2 pt-2 border-t border-zinc-800 text-emerald-400 space-y-1">
+                        <p className="font-bold">Đáp án chuẩn:</p>
                         {task.answerKey.map((ans, i) => (
-                          <p key={i}>• {ans}</p>
+                          <p key={i}>• {cleanPedagogyText(ans)}</p>
                         ))}
                       </div>
                     )}
@@ -625,43 +883,50 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
           </div>
 
           {/* Right: Interactive Classroom Mini-Game */}
-          <div className="p-6 rounded-xl bg-zinc-900 border border-zinc-800 space-y-5 flex flex-col justify-between">
+          <div className="p-6 rounded-2xl bg-zinc-900 border-2 border-amber-400 space-y-5 flex flex-col justify-between">
             <div className="space-y-4">
               <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-                <div>
-                  <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Trophy className="w-4 h-4 text-amber-400" />
-                    <span>{worksheetGame.gameTitle}</span>
-                  </h3>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    Mini-game tương tác ôn tập nhanh cuối giờ + Xuất dữ liệu JSON chuẩn
-                  </p>
-                </div>
+                <h3 className="font-bold text-white flex items-center gap-2 uppercase">
+                  <Trophy className="w-5 h-5 text-amber-400" />
+                  <span>{cleanPedagogyText(worksheetGame.gameTitle)}</span>
+                </h3>
 
                 <button
                   onClick={handleExportGameJson}
-                  className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5"
+                  className="btn-3d btn-3d-emerald px-3.5 py-1.5 rounded-xl text-xs font-extrabold flex items-center gap-1.5 font-sans"
                 >
-                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Xuất Data Game (.json)</span>
+                  <FileSpreadsheet className="w-3.5 h-3.5" />
+                  <span>Tải Về Game (.JSON)</span>
                 </button>
               </div>
 
-              {/* Score Bar */}
-              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between text-xs font-mono">
+              <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-between">
                 <span>
                   Câu hỏi: <b>{gameStep + 1} / {worksheetGame.gameQuestions.length}</b>
                 </span>
-                <span className="text-amber-400 font-bold text-sm">
-                  ĐIỂM SỐ: {gameScore} PTS
+                <span className="text-amber-400 font-bold">
+                  ĐIỂM SỐ: {gameScore}
                 </span>
               </div>
 
               {!gameFinished && currentGameQ ? (
                 <div className="p-5 rounded-xl bg-zinc-950 border border-zinc-800 space-y-4">
-                  <p className="text-sm sm:text-base font-bold text-white leading-relaxed">
-                    {currentGameQ.question}
-                  </p>
+                  {isEditing && onUpdateWorksheetGame ? (
+                    <textarea
+                      value={cleanPedagogyText(currentGameQ.question)}
+                      onChange={(e) => {
+                        const nextQs = [...worksheetGame.gameQuestions];
+                        nextQs[gameStep] = { ...currentGameQ, question: e.target.value };
+                        onUpdateWorksheetGame({ ...worksheetGame, gameQuestions: nextQs });
+                      }}
+                      rows={2}
+                      className="w-full p-2 rounded bg-slate-900 border border-amber-500 text-white"
+                    />
+                  ) : (
+                    <p className={`font-bold ${getCompetencyColorClass(currentGameQ.question)}`}>
+                      {cleanPedagogyText(currentGameQ.question)}
+                    </p>
+                  )}
 
                   <div className="space-y-2.5">
                     {currentGameQ.options.map((opt, idx) => {
@@ -681,10 +946,10 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
                         <button
                           key={idx}
                           onClick={() => handleSelectGameAnswer(idx)}
-                          className={`w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm transition-all flex items-center justify-between ${btnStyle}`}
+                          className={`w-full text-left p-3.5 rounded-xl border transition-all flex items-center justify-between ${btnStyle}`}
                         >
                           <span>
-                            <b>{String.fromCharCode(65 + idx)}.</b> {opt}
+                            <b>{String.fromCharCode(65 + idx)}.</b> {cleanPedagogyText(opt)}
                           </span>
                           {selectedGameOption !== null && isCorrect && (
                             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -696,10 +961,10 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
 
                   {selectedGameOption !== null && (
                     <div className="pt-2 flex items-center justify-between">
-                      <span className="text-xs text-cyan-400">{currentGameQ.hint}</span>
+                      <span className="text-cyan-400">{cleanPedagogyText(currentGameQ.hint)}</span>
                       <button
                         onClick={handleNextGameQuestion}
-                        className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold"
+                        className="btn-3d btn-3d-cyan px-4 py-2 rounded-xl text-xs font-extrabold font-sans"
                       >
                         Câu tiếp theo →
                       </button>
@@ -709,15 +974,15 @@ export const MediaStudioTab: React.FC<MediaStudioTabProps> = ({
               ) : (
                 <div className="p-8 rounded-xl bg-zinc-950 border border-zinc-800 text-center space-y-4">
                   <Trophy className="w-12 h-12 text-amber-400 mx-auto" />
-                  <h4 className="text-lg font-bold text-white">
-                    Hoàn thành Đấu Trường Tri Thức!
+                  <h4 className="font-bold text-white">
+                    Hoàn thành Trò Chơi Học Tập!
                   </h4>
-                  <p className="text-2xl font-black text-emerald-400 font-mono">
-                    Tổng điểm: {gameScore} PTS
+                  <p className="font-bold text-emerald-400">
+                    Tổng điểm: {gameScore}
                   </p>
                   <button
                     onClick={handleResetGame}
-                    className="px-5 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold inline-flex items-center gap-2"
+                    className="btn-3d btn-3d-cyan px-5 py-2.5 rounded-xl text-xs font-extrabold inline-flex items-center gap-2 font-sans"
                   >
                     <RotateCcw className="w-4 h-4" />
                     <span>Chơi Lại Từ Đầu</span>

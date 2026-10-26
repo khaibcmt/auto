@@ -332,28 +332,72 @@ export const AutoTyperTab: React.FC<AutoTyperTabProps> = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Source Text Input */}
         <div className="flex flex-col rounded-2xl bg-zinc-900 border border-zinc-800 overflow-hidden shadow-xl">
-          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex items-center justify-between">
+          <div className="px-4 py-3 bg-zinc-950/80 border-b border-zinc-800 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-zinc-400" />
               <span className="text-sm font-semibold text-zinc-200">
-                {isVi ? 'Văn Bản Mục Tiêu Cần Gõ' : 'Source Text To Type'}
+                {isVi ? 'Văn Bản Mục Tiêu Cần Gõ (12pt Times New Roman)' : 'Source Text To Type'}
               </span>
             </div>
-            <button
-              onClick={() => setTargetText(defaultSample)}
-              className="text-xs px-2.5 py-1 rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 transition-colors"
-            >
-              {isVi ? 'Khôi phục mẫu' : 'Reset sample'}
-            </button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <label className="btn-3d btn-3d-purple text-xs px-2.5 py-1 rounded-lg cursor-pointer font-bold">
+                <input
+                  type="file"
+                  accept=".txt,.doc,.docx,.md"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const txt = await f.text();
+                    setTargetText(txt);
+                    onLog(`Đã tải lên tệp "${f.name}" vào AutoTyper.`, 'info');
+                    e.target.value = '';
+                  }}
+                  className="hidden"
+                />
+                <span>{isVi ? 'Tải Lên' : 'Upload'}</span>
+              </label>
+              <button
+                onClick={() => setTargetText((p) => (p ? `${p}\nNội dung thêm mới...` : 'Nội dung mới...'))}
+                className="btn-3d btn-3d-emerald text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Thêm' : 'Add'}
+              </button>
+              <button
+                onClick={() => {
+                  const blob = new Blob([targetText], { type: 'text/plain;charset=utf-8' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'Van_Ban_AutoTyper_12pt.txt';
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+                className="btn-3d btn-3d-amber text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Tải Về' : 'Download'}
+              </button>
+              <button
+                onClick={() => setTargetText('')}
+                className="btn-3d btn-3d-rose text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Xóa' : 'Clear'}
+              </button>
+              <button
+                onClick={() => setTargetText(defaultSample)}
+                className="btn-3d btn-3d-cyan text-xs px-2.5 py-1 rounded-lg font-bold"
+              >
+                {isVi ? 'Mẫu' : 'Sample'}
+              </button>
+            </div>
           </div>
-          <div className="flex-1 p-4 bg-zinc-950/50">
+          <div className="flex-1 p-4 bg-zinc-950/50 doc-times-12pt">
             <textarea
               value={targetText}
               onChange={(e) => setTargetText(e.target.value)}
               disabled={isTyping}
               rows={12}
-              className="w-full h-full bg-transparent text-sm text-zinc-200 font-mono leading-relaxed resize-none focus:outline-none"
-              placeholder={isVi ? 'Nhập văn bản cần gõ tự động...' : 'Enter text to type...'}
+              className="w-full h-full bg-transparent text-zinc-100 leading-relaxed resize-none focus:outline-none"
+              placeholder={isVi ? 'Nhập hoặc tải lên văn bản cần gõ tự động...' : 'Enter text to type...'}
             />
           </div>
           <div className="px-4 py-2.5 bg-zinc-950/90 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
