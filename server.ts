@@ -1,5 +1,6 @@
 /**
- * Express backend server with Gemini API (@google/genai) integration
+ * Express backend server with Gemini API (@google/genai) integration,
+ * Structured Outputs (responseMimeType: 'application/json', T=0) for 10-in-1 Pedagogical Platform,
  * and Vite middleware integration.
  */
 
@@ -79,6 +80,7 @@ app.get('/api/status', async (_req, res) => {
   const hasGeminiKey = Boolean(process.env.GEMINI_API_KEY);
   res.json({
     status: 'ok',
+    version: '3.0.0',
     geminiConfigured: hasGeminiKey,
     defaultModel: 'gemini-3.8-flash',
     nodeEnv: process.env.NODE_ENV || 'development',
@@ -120,7 +122,7 @@ app.post('/api/humanize', async (req, res) => {
               { role: 'user', content: userMessage },
             ],
             options: {
-              temperature: temperature || 0.65,
+              temperature: typeof temperature === 'number' ? temperature : 0.65,
               num_predict: 8192,
               num_gpu: 0,
             },
@@ -220,7 +222,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`AutoTyper Studio server running on port ${PORT}`);
+    console.log(`AutoTyper Studio Pro v3.0 server running on port ${PORT}`);
   });
 }
 

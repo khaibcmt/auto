@@ -1,4 +1,13 @@
-export type TabType = 'humanizer' | 'autotyper' | 'prose' | 'models' | 'desktop' | 'logs';
+export type TabType =
+  | 'humanizer'
+  | 'autotyper'
+  | 'lesson5512'
+  | 'examsuite'
+  | 'mediastudio'
+  | 'prose'
+  | 'models'
+  | 'desktop'
+  | 'logs';
 
 export type Language = 'vi' | 'en';
 

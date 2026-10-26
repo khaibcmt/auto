@@ -30,6 +30,7 @@ interface HumanizeTabProps {
   updateSettings: (partial: Partial<UserSettings>) => void;
   language: Language;
   onSendToTyper: (text: string) => void;
+  onSendToPedagogy?: (text: string, target: 'lesson5512' | 'examsuite' | 'mediastudio') => void;
   onLog: (msg: string, level?: 'info' | 'hotkey' | 'engine' | 'warning' | 'error') => void;
 }
 
@@ -38,6 +39,7 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
   updateSettings,
   language,
   onSendToTyper,
+  onSendToPedagogy,
   onLog,
 }) => {
   const isVi = language === 'vi';
@@ -532,6 +534,45 @@ export const HumanizeTab: React.FC<HumanizeTabProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Progressive On-Demand Branch Actions (Chuyển luồng dữ liệu khép kín sang các phân hệ Sư phạm 03-10) */}
+      {onSendToPedagogy && (
+        <div className="p-4 rounded-xl bg-zinc-900/90 border border-zinc-800 flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="text-xs text-zinc-300">
+            <span className="font-bold text-cyan-400 mr-1.5">
+              {isVi ? 'Luồng Sinh Từng Bước (Progressive On-Demand):' : 'Progressive On-Demand Flow:'}
+            </span>
+            <span>
+              {isVi
+                ? 'Đẩy văn bản tri thức sang từng phân hệ Sư phạm & Khảo thí (tránh nghẽn HTTP 429):'
+                : 'Send text to individual Pedagogical & Exam modules on demand:'}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => onSendToPedagogy(outputText || inputText, 'lesson5512')}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-blue-300 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5 transition-colors"
+            >
+              <span>03-04. Soạn Giáo Án 5512</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onSendToPedagogy(outputText || inputText, 'examsuite')}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-300 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5 transition-colors"
+            >
+              <span>05-07. Sinh Đề 3 Phần & Ma Trận</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => onSendToPedagogy(outputText || inputText, 'mediastudio')}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-purple-300 text-xs font-semibold border border-zinc-700 flex items-center gap-1.5 transition-colors"
+            >
+              <span>08-10. Slide PPTX · Video · Game</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Prose Shield & AI Likeness Inspection Card */}
       <div className="p-5 rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-4">
